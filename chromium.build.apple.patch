@@ -1,98 +1,30 @@
 diff --git a/config/BUILDCONFIG.gn b/config/BUILDCONFIG.gn
-index c3a3bf497..49e13daeb 100644
+index 150d3b1df..380207f1e 100644
 --- a/config/BUILDCONFIG.gn
 +++ b/config/BUILDCONFIG.gn
-@@ -565,19 +565,19 @@ foreach(_target_type,
-                        invoker.use_libcxx_modules)) {
+@@ -597,7 +597,7 @@ foreach(_target_type,
+ 
+       if (is_clang && _use_libcxx_modules) {
          # This is necessary for Clang modules builds.
-         deps += [
--          "//buildtools/third_party/libc++:std",
--          "//buildtools/third_party/libc++:std_config",
--          "//buildtools/third_party/libc++:std_core",
--          "//buildtools/third_party/libc++:std_ctype_h",
--          "//buildtools/third_party/libc++:std_errno_h",
--          "//buildtools/third_party/libc++:std_fenv_h",
--          "//buildtools/third_party/libc++:std_float_h",
--          "//buildtools/third_party/libc++:std_inttypes_h",
--          "//buildtools/third_party/libc++:std_math_h",
--          "//buildtools/third_party/libc++:std_private_mbstate_t",
--          "//buildtools/third_party/libc++:std_string_h",
--          "//buildtools/third_party/libc++:std_uchar_h",
--          "//buildtools/third_party/libc++:std_wctype_h",
-+          # "//buildtools/third_party/libc++:std",
-+          # "//buildtools/third_party/libc++:std_config",
-+          # "//buildtools/third_party/libc++:std_core",
-+          # "//buildtools/third_party/libc++:std_ctype_h",
-+          # "//buildtools/third_party/libc++:std_errno_h",
-+          # "//buildtools/third_party/libc++:std_fenv_h",
-+          # "//buildtools/third_party/libc++:std_float_h",
-+          # "//buildtools/third_party/libc++:std_inttypes_h",
-+          # "//buildtools/third_party/libc++:std_math_h",
-+          # "//buildtools/third_party/libc++:std_private_mbstate_t",
-+          # "//buildtools/third_party/libc++:std_string_h",
-+          # "//buildtools/third_party/libc++:std_uchar_h",
-+          # "//buildtools/third_party/libc++:std_wctype_h",
-         ]
-       }
+-        deps += DEFAULT_MODULE_DEPS
++        # deps += DEFAULT_MODULE_DEPS
+       } else if (filter_include(configs,
+                                 [ "//build/config/compiler:libcxx_module" ]) !=
+                  []) {
+@@ -709,7 +709,7 @@ foreach(_target_type,
  
-@@ -669,22 +669,22 @@ foreach(_target_type,
-                        invoker.use_libcxx_modules)) {
+       if (is_clang && _use_libcxx_modules) {
          # These are necessary for Clang modules builds.
-         deps += [
--          "//buildtools/third_party/libc++:_Builtin_limits",
--          "//buildtools/third_party/libc++:_Builtin_stdarg",
--          "//buildtools/third_party/libc++:_Builtin_stddef",
--          "//buildtools/third_party/libc++:std",
--          "//buildtools/third_party/libc++:std_config",
--          "//buildtools/third_party/libc++:std_core",
--          "//buildtools/third_party/libc++:std_ctype_h",
--          "//buildtools/third_party/libc++:std_errno_h",
--          "//buildtools/third_party/libc++:std_fenv_h",
--          "//buildtools/third_party/libc++:std_float_h",
--          "//buildtools/third_party/libc++:std_inttypes_h",
--          "//buildtools/third_party/libc++:std_math_h",
--          "//buildtools/third_party/libc++:std_private_mbstate_t",
--          "//buildtools/third_party/libc++:std_string_h",
--          "//buildtools/third_party/libc++:std_uchar_h",
--          "//buildtools/third_party/libc++:std_wctype_h",
-+          # "//buildtools/third_party/libc++:_Builtin_limits",
-+          # "//buildtools/third_party/libc++:_Builtin_stdarg",
-+          # "//buildtools/third_party/libc++:_Builtin_stddef",
-+          # "//buildtools/third_party/libc++:std",
-+          # "//buildtools/third_party/libc++:std_config",
-+          # "//buildtools/third_party/libc++:std_core",
-+          # "//buildtools/third_party/libc++:std_ctype_h",
-+          # "//buildtools/third_party/libc++:std_errno_h",
-+          # "//buildtools/third_party/libc++:std_fenv_h",
-+          # "//buildtools/third_party/libc++:std_float_h",
-+          # "//buildtools/third_party/libc++:std_inttypes_h",
-+          # "//buildtools/third_party/libc++:std_math_h",
-+          # "//buildtools/third_party/libc++:std_private_mbstate_t",
-+          # "//buildtools/third_party/libc++:std_string_h",
-+          # "//buildtools/third_party/libc++:std_uchar_h",
-+          # "//buildtools/third_party/libc++:std_wctype_h",
-         ]
-       }
- 
+-        deps += DEFAULT_MODULE_DEPS
++        # deps += DEFAULT_MODULE_DEPS
+       } else if (filter_include(configs,
+                                 [ "//build/config/compiler:libcxx_module" ]) !=
+                  []) {
 diff --git a/config/compiler/BUILD.gn b/config/compiler/BUILD.gn
-index fca6c9295..a67d09706 100644
+index 6dc73bfe4..8717fb720 100644
 --- a/config/compiler/BUILD.gn
 +++ b/config/compiler/BUILD.gn
-@@ -623,13 +623,6 @@ config("compiler") {
-         default_toolchain != "//build/toolchain/cros:target") {
-       cflags += [ "-Wa,--crel,--allow-experimental-crel" ]
-     }
--
--    # TODO(crbug.com/413427035): Remove once
--    # https://github.com/llvm/llvm-project/pull/136867/ is landed.
--    if (!is_win && !llvm_android_mainline &&
--        default_toolchain != "//build/toolchain/cros:target") {
--      cflags += [ "-fextend-variable-liveness=none" ]
--    }
-   }
- 
-   # C11/C++11 compiler flags setup.
-@@ -1998,12 +1991,6 @@ config("default_warnings") {
+@@ -2081,12 +2081,6 @@ config("default_warnings") {
        cflags += [
          # TODO(crbug.com/330524456): -Wcast-function-type is under -Wextra now.
          "-Wno-cast-function-type",
@@ -105,7 +37,7 @@ index fca6c9295..a67d09706 100644
        ]
  
        cflags_cc += [
-@@ -2976,7 +2963,7 @@ config("symbols") {
+@@ -3088,7 +3082,7 @@ config("symbols") {
      configs += [ "//build/config:compress_debug_sections" ]
    }
  
