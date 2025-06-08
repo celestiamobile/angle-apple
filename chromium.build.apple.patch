@@ -1,30 +1,30 @@
 diff --git a/config/BUILDCONFIG.gn b/config/BUILDCONFIG.gn
-index 150d3b1df..380207f1e 100644
+index 06238b1c7..a960df0c9 100644
 --- a/config/BUILDCONFIG.gn
 +++ b/config/BUILDCONFIG.gn
-@@ -597,7 +597,7 @@ foreach(_target_type,
+@@ -624,7 +624,7 @@ foreach(_target_type,
  
        if (is_clang && _use_libcxx_modules) {
          # This is necessary for Clang modules builds.
 -        deps += DEFAULT_MODULE_DEPS
 +        # deps += DEFAULT_MODULE_DEPS
-       } else if (filter_include(configs,
-                                 [ "//build/config/compiler:libcxx_module" ]) !=
-                  []) {
-@@ -709,7 +709,7 @@ foreach(_target_type,
+         if (!defined(defines)) {
+           defines = []
+         }
+@@ -740,7 +740,7 @@ foreach(_target_type,
  
        if (is_clang && _use_libcxx_modules) {
          # These are necessary for Clang modules builds.
 -        deps += DEFAULT_MODULE_DEPS
 +        # deps += DEFAULT_MODULE_DEPS
-       } else if (filter_include(configs,
-                                 [ "//build/config/compiler:libcxx_module" ]) !=
-                  []) {
+         if (!defined(defines)) {
+           defines = []
+         }
 diff --git a/config/compiler/BUILD.gn b/config/compiler/BUILD.gn
-index 6dc73bfe4..8717fb720 100644
+index a17fae722..3da94eff5 100644
 --- a/config/compiler/BUILD.gn
 +++ b/config/compiler/BUILD.gn
-@@ -2081,12 +2081,6 @@ config("default_warnings") {
+@@ -2117,12 +2117,6 @@ config("default_warnings") {
        cflags += [
          # TODO(crbug.com/330524456): -Wcast-function-type is under -Wextra now.
          "-Wno-cast-function-type",
@@ -37,7 +37,7 @@ index 6dc73bfe4..8717fb720 100644
        ]
  
        cflags_cc += [
-@@ -3088,7 +3082,7 @@ config("symbols") {
+@@ -3118,7 +3112,7 @@ config("symbols") {
      configs += [ "//build/config:compress_debug_sections" ]
    }
  
