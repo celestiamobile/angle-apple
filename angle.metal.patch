@@ -1,0 +1,57 @@
+diff --git a/src/libANGLE/renderer/metal/BUILD.gn b/src/libANGLE/renderer/metal/BUILD.gn
+index 96e9ee8420..2a58235524 100644
+--- a/src/libANGLE/renderer/metal/BUILD.gn
++++ b/src/libANGLE/renderer/metal/BUILD.gn
+@@ -50,10 +50,48 @@ if (metal_internal_shader_compilation_supported) {
+         "-mmacosx-version-min=10.14",
+       ]
+     } else if (is_ios) {
+-      args += [
+-        "--std=ios-metal2.1",
+-        "-mios-version-min=12",
+-      ]
++      if (target_platform == "iphoneos") {
++        if (target_environment == "catalyst") {
++          args += [
++            "--std=macos-metal2.1",
++            "-target", "air64-apple-ios13.1-macabi",
++          ]
++        } else if (target_environment == "simulator") {
++          args += [
++            "--std=ios-metal2.1",
++            "-target", "air64-apple-ios12.0-simulator",
++          ]
++        } else {
++          args += [
++            "--std=ios-metal2.1",
++            "-target", "air64-apple-ios12.0",
++          ]
++        }
++      } else if (target_platform == "tvos") {
++        if (target_environment == "simulator") {
++          args += [
++            "--std=ios-metal2.1",
++            "-target", "air64-apple-tvos1.0-simulator",
++          ]
++        } else {
++          args += [
++            "--std=ios-metal2.1",
++            "-target", "air64-apple-tvos12.0",
++          ]
++        }
++      } else if (target_platform == "xros") {
++        if (target_environment == "simulator") {
++          args += [
++            "--std=ios-metal2.1",
++            "-target", "air64-apple-xros1.0-simulator",
++          ]
++        } else {
++          args += [
++            "--std=ios-metal2.1",
++            "-target", "air64-apple-xros1.0",
++          ]
++        }
++      }
+     }
+   }
+ 
