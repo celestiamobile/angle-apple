@@ -1,8 +1,8 @@
 diff --git a/config/BUILDCONFIG.gn b/config/BUILDCONFIG.gn
-index 06238b1c7..a960df0c9 100644
+index 759e1e0a7..cf3f72ef5 100644
 --- a/config/BUILDCONFIG.gn
 +++ b/config/BUILDCONFIG.gn
-@@ -624,7 +624,7 @@ foreach(_target_type,
+@@ -636,7 +636,7 @@ foreach(_target_type,
  
        if (is_clang && _use_libcxx_modules) {
          # This is necessary for Clang modules builds.
@@ -11,7 +11,7 @@ index 06238b1c7..a960df0c9 100644
          if (!defined(defines)) {
            defines = []
          }
-@@ -740,7 +740,7 @@ foreach(_target_type,
+@@ -756,7 +756,7 @@ foreach(_target_type,
  
        if (is_clang && _use_libcxx_modules) {
          # These are necessary for Clang modules builds.
@@ -21,36 +21,33 @@ index 06238b1c7..a960df0c9 100644
            defines = []
          }
 diff --git a/config/compiler/BUILD.gn b/config/compiler/BUILD.gn
-index a17fae722..3da94eff5 100644
+index 458c2d22d..c556186e4 100644
 --- a/config/compiler/BUILD.gn
 +++ b/config/compiler/BUILD.gn
-@@ -2117,12 +2117,6 @@ config("default_warnings") {
-       cflags += [
-         # TODO(crbug.com/330524456): -Wcast-function-type is under -Wextra now.
-         "-Wno-cast-function-type",
--
--        # TODO(crbug.com/40284799): Fix and re-enable.
--        "-Wno-thread-safety-reference-return",
--
--        # TODO(crbug.com/376641662): Fix and re-enable.
--        "-Wno-nontrivial-memcall",
-       ]
+@@ -2073,9 +2073,6 @@ config("default_warnings") {
  
-       cflags_cc += [
-@@ -3118,7 +3112,7 @@ config("symbols") {
-     configs += [ "//build/config:compress_debug_sections" ]
-   }
+       # TODO(crbug.com/40284799): Fix and re-enable.
+       "-Wno-thread-safety-reference-return",
+-
+-      # TODO(crbug.com/376641662): Fix and re-enable.
+-      "-Wno-nontrivial-memcall",
+     ]
  
--  if (is_clang && !is_nacl && is_win && !is_component_build) {
-+  if (is_clang && !is_nacl && is_win && !is_component_build && is_apple) {
-     # Remove unreferenced methods to reduce type info in symbols.
-     # See: https://github.com/llvm/llvm-project/pull/87018.
-     # The downside with this flag is precisely that: Unreferenced methods get
+     cflags_cc += [
+@@ -2110,7 +2107,7 @@ config("default_warnings") {
+     if (default_toolchain != "//build/toolchain/cros:target" &&
+         !llvm_android_mainline) {
+       # TODO(crbug.com/417996267): Fix and re-enable
+-      cflags += [ "-Wno-character-conversion" ]
++      # cflags += [ "-Wno-character-conversion" ]
+     }
+ 
+     if (is_component_build && use_clang_warning_suppression_file && !is_win) {
 diff --git a/config/ios/BUILD.gn b/config/ios/BUILD.gn
-index 507e2a867..444a7a2e0 100644
+index 9cd1fb75e..965fc428e 100644
 --- a/config/ios/BUILD.gn
 +++ b/config/ios/BUILD.gn
-@@ -263,6 +263,14 @@ group("xctest") {
+@@ -283,6 +283,14 @@ group("xctest") {
  _xctrunner_path =
      "$ios_sdk_platform_path/Developer/Library/Xcode/Agents/XCTRunner.app"
  
@@ -65,7 +62,7 @@ index 507e2a867..444a7a2e0 100644
  # When building with RBE, $ios_sdk_platform_path corresponds to a symlink
  # below $root_build_dir that points to the real SDK to use. Because the files
  # are below $root_build_dir, it is not possible to list them as a target input
-@@ -276,15 +284,24 @@ _xctrunner_path =
+@@ -296,15 +304,24 @@ _xctrunner_path =
  # To workaround this, add a target that pretends to create those files
  # (but does nothing). See https://crbug.com/1061487 for why this is needed.
  if (ios_use_xcode_symlinks) {
@@ -94,7 +91,7 @@ index 507e2a867..444a7a2e0 100644
  }
  
  # When creating the test runner for an XCUITest, the arm64e slice of the binary
-@@ -293,7 +310,7 @@ if (ios_use_xcode_symlinks) {
+@@ -313,7 +330,7 @@ if (ios_use_xcode_symlinks) {
  action("xctest_runner_without_arm64e") {
    testonly = true
    script = "//build/config/ios/strip_arm64e.py"
