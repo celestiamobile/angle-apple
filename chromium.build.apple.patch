@@ -1,30 +1,30 @@
 diff --git a/config/BUILDCONFIG.gn b/config/BUILDCONFIG.gn
-index 759e1e0a7..cf3f72ef5 100644
+index 7d057cc7f..93752e2c7 100644
 --- a/config/BUILDCONFIG.gn
 +++ b/config/BUILDCONFIG.gn
-@@ -636,7 +636,7 @@ foreach(_target_type,
+@@ -600,7 +600,7 @@ foreach(_target_type,
  
        if (is_clang && _use_libcxx_modules) {
          # This is necessary for Clang modules builds.
--        deps += DEFAULT_MODULE_DEPS
-+        # deps += DEFAULT_MODULE_DEPS
+-        deps += [ "//buildtools/third_party/libc++:all_modules" ]
++        # deps += [ "//buildtools/third_party/libc++:all_modules" ]
          if (!defined(defines)) {
            defines = []
          }
-@@ -756,7 +756,7 @@ foreach(_target_type,
+@@ -720,7 +720,7 @@ foreach(_target_type,
  
        if (is_clang && _use_libcxx_modules) {
          # These are necessary for Clang modules builds.
--        deps += DEFAULT_MODULE_DEPS
-+        # deps += DEFAULT_MODULE_DEPS
+-        deps += [ "//buildtools/third_party/libc++:all_modules" ]
++        # deps += [ "//buildtools/third_party/libc++:all_modules" ]
          if (!defined(defines)) {
            defines = []
          }
 diff --git a/config/compiler/BUILD.gn b/config/compiler/BUILD.gn
-index 458c2d22d..c556186e4 100644
+index af999455e..957b771ab 100644
 --- a/config/compiler/BUILD.gn
 +++ b/config/compiler/BUILD.gn
-@@ -2073,9 +2073,6 @@ config("default_warnings") {
+@@ -2063,9 +2063,6 @@ config("default_warnings") {
  
        # TODO(crbug.com/40284799): Fix and re-enable.
        "-Wno-thread-safety-reference-return",
@@ -34,15 +34,6 @@ index 458c2d22d..c556186e4 100644
      ]
  
      cflags_cc += [
-@@ -2110,7 +2107,7 @@ config("default_warnings") {
-     if (default_toolchain != "//build/toolchain/cros:target" &&
-         !llvm_android_mainline) {
-       # TODO(crbug.com/417996267): Fix and re-enable
--      cflags += [ "-Wno-character-conversion" ]
-+      # cflags += [ "-Wno-character-conversion" ]
-     }
- 
-     if (is_component_build && use_clang_warning_suppression_file && !is_win) {
 diff --git a/config/ios/BUILD.gn b/config/ios/BUILD.gn
 index 9cd1fb75e..965fc428e 100644
 --- a/config/ios/BUILD.gn
@@ -101,10 +92,10 @@ index 9cd1fb75e..965fc428e 100644
    args = [
      "--output",
 diff --git a/config/ios/rules.gni b/config/ios/rules.gni
-index d7fe32f7f..302d37efc 100644
+index 3efc3ad5a..55b202988 100644
 --- a/config/ios/rules.gni
 +++ b/config/ios/rules.gni
-@@ -1364,9 +1364,13 @@ template("ios_xcuitest_test_runner_bundle") {
+@@ -1363,9 +1363,13 @@ template("ios_xcuitest_test_runner_bundle") {
      testonly = true
      script = "//build/apple/plist_util.py"
  
@@ -120,7 +111,7 @@ index d7fe32f7f..302d37efc 100644
        # NOTE: The XCTRunnerAddition+Info.plist must come after the Info.plist
        # because it overrides the values under "CFBundleIdentifier" and
        # "CFBundleName".
-@@ -1411,7 +1415,11 @@ template("ios_xcuitest_test_runner_bundle") {
+@@ -1410,7 +1414,11 @@ template("ios_xcuitest_test_runner_bundle") {
      testonly = true
      visibility = [ ":$_target_name" ]
  

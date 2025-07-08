@@ -68,7 +68,7 @@ build_angle()
   gn gen out/$1/$2/
   check_success
 
-  autoninja -j4 -C out/$1/$2/
+  autoninja --offline -j4 -C out/$1/$2/
   check_success
 
   if [ "$1" = "Mac" ]; then
