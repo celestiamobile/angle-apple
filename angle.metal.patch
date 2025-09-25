@@ -1,15 +1,15 @@
 diff --git a/src/libANGLE/renderer/metal/BUILD.gn b/src/libANGLE/renderer/metal/BUILD.gn
-index 96e9ee8420..2a58235524 100644
+index 50ac42a5b9..924e965281 100644
 --- a/src/libANGLE/renderer/metal/BUILD.gn
 +++ b/src/libANGLE/renderer/metal/BUILD.gn
-@@ -50,10 +50,48 @@ if (metal_internal_shader_compilation_supported) {
-         "-mmacosx-version-min=10.14",
+@@ -87,9 +87,50 @@ if (metal_internal_shader_compilation_supported) {
        ]
      } else if (is_ios) {
--      args += [
+       args += [
 -        "--std=ios-metal2.1",
 -        "-mios-version-min=12",
--      ]
++        "-isysroot", ios_sdk_path,
+       ]
 +      if (target_platform == "iphoneos") {
 +        if (target_environment == "catalyst") {
 +          args += [
