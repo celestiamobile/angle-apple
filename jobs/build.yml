@@ -8,7 +8,7 @@ jobs:
   variables:
     platform: ${{ parameters.platform }}
     arch: ${{ parameters.arch }}
-    xcodeVersion: ${{ '16.4' }}
+    xcodeVersion: ${{ '26.0' }}
 
   steps:
   - script: |
@@ -19,6 +19,7 @@ jobs:
 
   - script: |
       sudo xcode-select -s /Applications/Xcode_$(xcodeVersion).app
+      xcodebuild -downloadComponent metalToolchain
       chmod +x build.sh
       chmod +x bundle_in_framework.sh
       chmod +x generate_info_plist.sh

@@ -1,8 +1,8 @@
 diff --git a/config/apple/codesign.py b/config/apple/codesign.py
-index 62db2573e..576180286 100644
+index bb09bc493..05663c65f 100644
 --- a/config/apple/codesign.py
 +++ b/config/apple/codesign.py
-@@ -109,6 +109,8 @@ class Bundle(object):
+@@ -136,6 +136,8 @@ class Bundle(object):
    def Kind(platform, extension):
      if platform in ('iphoneos', 'iphonesimulator'):
        return 'ios'
@@ -12,7 +12,7 @@ index 62db2573e..576180286 100644
        if extension == '.framework':
          return 'mac_framework'
 diff --git a/config/apple/mobile_config.gni b/config/apple/mobile_config.gni
-index 48e80f216..f778ac967 100644
+index 28bba9fd1..0a33b63ae 100644
 --- a/config/apple/mobile_config.gni
 +++ b/config/apple/mobile_config.gni
 @@ -8,6 +8,7 @@ declare_args() {
@@ -23,7 +23,7 @@ index 48e80f216..f778ac967 100644
  
    # Valid values: "iphoneos" (default), "tvos", "watchos".
    # Indicates the kind of iOS or iOS-based platform that is being targeted.
-@@ -75,6 +76,7 @@ if (is_ios || is_watchos) {
+@@ -83,6 +84,7 @@ if (is_ios || is_watchos) {
      _target_platforms += [
        "iphoneos",
        "tvos",
@@ -32,10 +32,10 @@ index 48e80f216..f778ac967 100644
    } else if (is_watchos) {
      _target_platforms += [
 diff --git a/config/apple/sdk_info.py b/config/apple/sdk_info.py
-index bbadc1247..8f06db59d 100755
+index 88f9cd680..298a1cd28 100755
 --- a/config/apple/sdk_info.py
 +++ b/config/apple/sdk_info.py
-@@ -141,6 +141,8 @@ def main():
+@@ -143,6 +143,8 @@ def main():
                            'macosx',
                            'watchos',
                            'watchsimulator',
@@ -45,10 +45,10 @@ index bbadc1247..8f06db59d 100755
    args = parser.parse_args()
    if args.developer_dir:
 diff --git a/config/clang/BUILD.gn b/config/clang/BUILD.gn
-index 4b6365dc7..eb4d03201 100644
+index b171ee13c..03e89943c 100644
 --- a/config/clang/BUILD.gn
 +++ b/config/clang/BUILD.gn
-@@ -286,6 +286,14 @@ clang_lib("compiler_builtins") {
+@@ -245,6 +245,14 @@ clang_lib("compiler_builtins") {
        } else {
          assert(false, "unsupported target_environment=$target_environment")
        }
@@ -64,18 +64,16 @@ index 4b6365dc7..eb4d03201 100644
        assert(false, "unsupported target_platform=$target_platform")
      }
 diff --git a/config/compiler/BUILD.gn b/config/compiler/BUILD.gn
-index 90fc29488..60cec6995 100644
+index 1b6d2801e..e2e0b8cd9 100644
 --- a/config/compiler/BUILD.gn
 +++ b/config/compiler/BUILD.gn
-@@ -614,24 +614,6 @@ config("compiler") {
+@@ -679,22 +679,6 @@ config("compiler") {
        }
      }
  
 -    # TODO(crbug.com/40283598): This causes binary size growth and potentially
 -    # other problems.
--    # TODO(crbug.com/40284925): This isn't supported by Cronet's mainline llvm version.
--    if (default_toolchain != "//build/toolchain/cros:target" &&
--        !llvm_android_mainline) {
+-    if (default_toolchain != "//build/toolchain/cros:target") {
 -      cflags += [
 -        "-mllvm",
 -        "-split-threshold-for-reg-with-hint=0",
@@ -92,7 +90,7 @@ index 90fc29488..60cec6995 100644
      # TODO(crbug.com/40192287): Investigate why/if this should be needed.
      if (is_win) {
        cflags += [ "/clang:-ffp-contract=off" ]
-@@ -2050,6 +2032,7 @@ config("default_warnings") {
+@@ -2136,6 +2120,7 @@ config("default_warnings") {
        # TODO(thakis): Push this to the (few) targets that need it,
        # instead of having a global flag.
        "-Wno-psabi",
@@ -101,10 +99,10 @@ index 90fc29488..60cec6995 100644
  
      cflags_cc += [
 diff --git a/config/ios/BUILD.gn b/config/ios/BUILD.gn
-index 965fc428e..756eb61f4 100644
+index 9ca79e34a..0c28c23c6 100644
 --- a/config/ios/BUILD.gn
 +++ b/config/ios/BUILD.gn
-@@ -48,6 +48,8 @@ config("compiler") {
+@@ -49,6 +49,8 @@ config("compiler") {
      triplet_os = "apple-ios"
    } else if (target_platform == "tvos") {
      triplet_os = "apple-tvos"
@@ -114,10 +112,10 @@ index 965fc428e..756eb61f4 100644
  
    # Set target.
 diff --git a/config/ios/ios_sdk.gni b/config/ios/ios_sdk.gni
-index cab82e04c..ef81428c7 100644
+index 305f6b824..4a3a71b2e 100644
 --- a/config/ios/ios_sdk.gni
 +++ b/config/ios/ios_sdk.gni
-@@ -90,6 +90,16 @@ if (ios_sdk_path == "") {
+@@ -91,6 +91,16 @@ if (ios_sdk_path == "") {
      } else {
        assert(false, "unsupported target_environment=$target_environment")
      }
@@ -135,7 +133,7 @@ index cab82e04c..ef81428c7 100644
      assert(false, "unsupported target_platform=$target_platform")
    }
 diff --git a/config/ios/rules.gni b/config/ios/rules.gni
-index 302d37efc..bff253b8a 100644
+index 339fa1909..372539156 100644
 --- a/config/ios/rules.gni
 +++ b/config/ios/rules.gni
 @@ -95,7 +95,7 @@ template("ios_info_plist") {
@@ -148,10 +146,10 @@ index 302d37efc..bff253b8a 100644
      } else if (target_platform == "tvos") {
        _build_info_plist = "//build/config/tvos/BuildInfo.plist"
 diff --git a/config/rust.gni b/config/rust.gni
-index bd18d1311..d4e42e6cb 100644
+index 55bd7b78e..929b3a50e 100644
 --- a/config/rust.gni
 +++ b/config/rust.gni
-@@ -316,6 +316,16 @@ if (is_linux || is_chromeos) {
+@@ -281,6 +281,16 @@ if (is_linux || is_chromeos) {
        } else {
          assert(false, "unsupported target_environment=$target_environment")
        }
@@ -168,7 +166,7 @@ index bd18d1311..d4e42e6cb 100644
      } else {
        assert(false, "unsupported target_platform=$target_platform")
      }
-@@ -340,6 +350,13 @@ if (is_linux || is_chromeos) {
+@@ -301,6 +311,13 @@ if (is_linux || is_chromeos) {
        } else {
          assert(false, "unsupported target_environment=$target_environment")
        }
@@ -183,10 +181,10 @@ index bd18d1311..d4e42e6cb 100644
        assert(false, "unsupported target_platform=$target_platform")
      }
 diff --git a/toolchain/apple/toolchain.gni b/toolchain/apple/toolchain.gni
-index d5210da1a..8c1412141 100644
+index 47621a7c5..a454d8092 100644
 --- a/toolchain/apple/toolchain.gni
 +++ b/toolchain/apple/toolchain.gni
-@@ -459,7 +459,7 @@ template("single_apple_toolchain") {
+@@ -465,7 +465,7 @@ template("single_apple_toolchain") {
          command = "rm -f {{output}} && TOOL_VERSION=${tool_versions.filter_libtool} $python_path $script $libtool -static -D {{arflags}} -o {{output}} @$rspfile"
          description = "LIBTOOL-STATIC {{output}}"
        } else {
