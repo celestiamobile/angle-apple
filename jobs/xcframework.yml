@@ -3,10 +3,10 @@ jobs:
   displayName: 'Build'
   timeoutInMinutes: 120
   pool:
-    vmImage: macos-13
+    vmImage: macos-15
 
   variables:
-    xcodeVersion: ${{ '15.2' }}
+    xcodeVersion: ${{ '26.0' }}
 
   steps:
   - task: DownloadBuildArtifacts@0
