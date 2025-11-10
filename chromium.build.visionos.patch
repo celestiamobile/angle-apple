@@ -64,10 +64,10 @@ index b171ee13c..03e89943c 100644
        assert(false, "unsupported target_platform=$target_platform")
      }
 diff --git a/config/compiler/BUILD.gn b/config/compiler/BUILD.gn
-index 1b6d2801e..e2e0b8cd9 100644
+index f5f8c05c0..ad4ab382f 100644
 --- a/config/compiler/BUILD.gn
 +++ b/config/compiler/BUILD.gn
-@@ -679,22 +679,6 @@ config("compiler") {
+@@ -692,22 +692,6 @@ config("compiler") {
        }
      }
  
@@ -90,7 +90,7 @@ index 1b6d2801e..e2e0b8cd9 100644
      # TODO(crbug.com/40192287): Investigate why/if this should be needed.
      if (is_win) {
        cflags += [ "/clang:-ffp-contract=off" ]
-@@ -2136,6 +2120,7 @@ config("default_warnings") {
+@@ -2165,6 +2149,7 @@ config("default_warnings") {
        # TODO(thakis): Push this to the (few) targets that need it,
        # instead of having a global flag.
        "-Wno-psabi",
@@ -99,10 +99,10 @@ index 1b6d2801e..e2e0b8cd9 100644
  
      cflags_cc += [
 diff --git a/config/ios/BUILD.gn b/config/ios/BUILD.gn
-index 9ca79e34a..0c28c23c6 100644
+index 474b1d64b..dc3933e22 100644
 --- a/config/ios/BUILD.gn
 +++ b/config/ios/BUILD.gn
-@@ -49,6 +49,8 @@ config("compiler") {
+@@ -45,6 +45,8 @@ config("compiler") {
      triplet_os = "apple-ios"
    } else if (target_platform == "tvos") {
      triplet_os = "apple-tvos"
@@ -133,7 +133,7 @@ index 305f6b824..4a3a71b2e 100644
      assert(false, "unsupported target_platform=$target_platform")
    }
 diff --git a/config/ios/rules.gni b/config/ios/rules.gni
-index 339fa1909..372539156 100644
+index 6c288ee61..e7b8e0b2d 100644
 --- a/config/ios/rules.gni
 +++ b/config/ios/rules.gni
 @@ -95,7 +95,7 @@ template("ios_info_plist") {
@@ -146,10 +146,10 @@ index 339fa1909..372539156 100644
      } else if (target_platform == "tvos") {
        _build_info_plist = "//build/config/tvos/BuildInfo.plist"
 diff --git a/config/rust.gni b/config/rust.gni
-index 55bd7b78e..929b3a50e 100644
+index ef45a4a9a..f7212adf7 100644
 --- a/config/rust.gni
 +++ b/config/rust.gni
-@@ -281,6 +281,16 @@ if (is_linux || is_chromeos) {
+@@ -288,6 +288,16 @@ if (is_linux || is_chromeos) {
        } else {
          assert(false, "unsupported target_environment=$target_environment")
        }
@@ -166,7 +166,7 @@ index 55bd7b78e..929b3a50e 100644
      } else {
        assert(false, "unsupported target_platform=$target_platform")
      }
-@@ -301,6 +311,13 @@ if (is_linux || is_chromeos) {
+@@ -308,6 +318,13 @@ if (is_linux || is_chromeos) {
        } else {
          assert(false, "unsupported target_environment=$target_environment")
        }
@@ -180,11 +180,23 @@ index 55bd7b78e..929b3a50e 100644
      } else {
        assert(false, "unsupported target_platform=$target_platform")
      }
+diff --git a/rust/known-target-triples.txt b/rust/known-target-triples.txt
+index fc4780bf6..ed05a44df 100644
+--- a/rust/known-target-triples.txt
++++ b/rust/known-target-triples.txt
+@@ -43,3 +43,6 @@ x86_64-unknown-fuchsia
+ x86_64-unknown-linux-gnu
+ powerpc64le-unknown-linux-gnu
+ s390x-unknown-linux-gnu
++aarch64-apple-xros
++aarch64-apple-xros-sim
++x86_64-apple-xros-sim
+\ No newline at end of file
 diff --git a/toolchain/apple/toolchain.gni b/toolchain/apple/toolchain.gni
-index 47621a7c5..a454d8092 100644
+index 7cac19cd0..97886c741 100644
 --- a/toolchain/apple/toolchain.gni
 +++ b/toolchain/apple/toolchain.gni
-@@ -465,7 +465,7 @@ template("single_apple_toolchain") {
+@@ -487,7 +487,7 @@ template("single_apple_toolchain") {
          command = "rm -f {{output}} && TOOL_VERSION=${tool_versions.filter_libtool} $python_path $script $libtool -static -D {{arflags}} -o {{output}} @$rspfile"
          description = "LIBTOOL-STATIC {{output}}"
        } else {
