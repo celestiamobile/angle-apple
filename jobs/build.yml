@@ -8,7 +8,7 @@ jobs:
   variables:
     platform: ${{ parameters.platform }}
     arch: ${{ parameters.arch }}
-    xcodeVersion: ${{ '26.0' }}
+    xcodeVersion: ${{ '26.1' }}
 
   steps:
   - script: |

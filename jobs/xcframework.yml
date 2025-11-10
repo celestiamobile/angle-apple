@@ -6,7 +6,7 @@ jobs:
     vmImage: macos-15
 
   variables:
-    xcodeVersion: ${{ '26.0' }}
+    xcodeVersion: ${{ '26.1' }}
 
   steps:
   - task: DownloadBuildArtifacts@0
