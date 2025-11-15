@@ -1,0 +1,184 @@
+name: XCFramework
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: 'Version name for the release (leave empty to skip release)'
+        required: false
+        type: string
+
+jobs:
+  build-all:
+    strategy:
+      matrix:
+        include:
+          - platform: iOS
+            arch: arm64
+          - platform: Simulator
+            arch: arm64
+          - platform: Simulator
+            arch: x64
+          - platform: VisionOS
+            arch: arm64
+          - platform: VisionOSSimulator
+            arch: arm64
+          - platform: VisionOSSimulator
+            arch: x64
+          - platform: Mac
+            arch: arm64
+          - platform: Mac
+            arch: x64
+          - platform: Catalyst
+            arch: arm64
+          - platform: Catalyst
+            arch: x64
+          - platform: TVOS
+            arch: arm64
+          - platform: TVOSSimulator
+            arch: arm64
+          - platform: TVOSSimulator
+            arch: x64
+    name: Build ${{ matrix.platform }} (${{ matrix.arch }})
+    uses: ./.github/workflows/build-template.yml
+    with:
+      platform: ${{ matrix.platform }}
+      arch: ${{ matrix.arch }}
+
+  generate-xcframework:
+    name: Generate XCFramework
+    needs: build-all
+    runs-on: macos-15
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '16.1'
+
+      - name: Download iOS Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: iOS.arm64
+          path: iOS.arm64
+
+      - name: Download iOS Simulator (arm64) Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: Simulator.arm64
+          path: Simulator.arm64
+
+      - name: Download iOS Simulator (x64) Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: Simulator.x64
+          path: Simulator.x64
+
+      - name: Download visionOS Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: VisionOS.arm64
+          path: VisionOS.arm64
+
+      - name: Download visionOS Simulator (arm64) Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: VisionOSSimulator.arm64
+          path: VisionOSSimulator.arm64
+
+      - name: Download visionOS Simulator (x64) Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: VisionOSSimulator.x64
+          path: VisionOSSimulator.x64
+
+      - name: Download Mac (arm64) Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: Mac.arm64
+          path: Mac.arm64
+
+      - name: Download Mac (x64) Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: Mac.x64
+          path: Mac.x64
+
+      - name: Download Catalyst (arm64) Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: Catalyst.arm64
+          path: Catalyst.arm64
+
+      - name: Download Catalyst (x64) Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: Catalyst.x64
+          path: Catalyst.x64
+
+      - name: Download tvOS Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: TVOS.arm64
+          path: TVOS.arm64
+
+      - name: Download tvOS Simulator (arm64) Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: TVOSSimulator.arm64
+          path: TVOSSimulator.arm64
+
+      - name: Download tvOS Simulator (x64) Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: TVOSSimulator.x64
+          path: TVOSSimulator.x64
+
+      - name: Build XCFramework
+        run: |
+          tar -xzvf iOS.arm64/angle.tar.gz
+          tar -xzvf Simulator.arm64/angle.tar.gz
+          tar -xzvf Simulator.x64/angle.tar.gz
+          tar -xzvf VisionOS.arm64/angle.tar.gz
+          tar -xzvf VisionOSSimulator.arm64/angle.tar.gz
+          tar -xzvf VisionOSSimulator.x64/angle.tar.gz
+          tar -xzvf Mac.arm64/angle.tar.gz
+          tar -xzvf Mac.x64/angle.tar.gz
+          tar -xzvf Catalyst.arm64/angle.tar.gz
+          tar -xzvf Catalyst.x64/angle.tar.gz
+          tar -xzvf TVOS.arm64/angle.tar.gz
+          tar -xzvf TVOSSimulator.arm64/angle.tar.gz
+          tar -xzvf TVOSSimulator.x64/angle.tar.gz
+          chmod +x build_xcframework.sh
+          cp PrivacyInfo.xcprivacy out/
+          cp build_xcframework.sh out/
+          out/build_xcframework.sh
+          mv out/libEGL.xcframework .
+          mv out/libGLESv2.xcframework .
+          tar -czvf angle.tar.gz *.xcframework
+
+      - name: Upload XCFramework Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: XCFramework
+          path: angle.tar.gz
+          retention-days: 30
+
+      - name: Create Release
+        if: inputs.version_name != ''
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ inputs.version_name }}.${{ github.run_id }}
+          name: ${{ inputs.version_name }}.${{ github.run_id }}
+          files: angle.tar.gz
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,50 @@
+name: Build Template
+
+on:
+  workflow_call:
+    inputs:
+      platform:
+        required: true
+        type: string
+      arch:
+        required: true
+        type: string
+      xcode-version:
+        required: false
+        type: string
+        default: '26.1'
+
+jobs:
+  build:
+    name: Build ${{ inputs.platform }} (${{ inputs.arch }})
+    runs-on: macos-15
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Xcode
+        run: sudo xcode-select -s /Applications/Xcode_${{ inputs.xcode-version }}.app
+
+      - name: Replace Xcode path in config files
+        run: |
+          TO_REPLACE="Xcode.app"
+          NEW_STRING="Xcode_${{ inputs.xcode-version }}.app"
+          sed -ie "s#${TO_REPLACE}#${NEW_STRING}#g" *.gn
+
+      - name: Build
+        run: |
+          xcodebuild -downloadComponent metalToolchain
+          chmod +x build.sh
+          chmod +x bundle_in_framework.sh
+          chmod +x generate_info_plist.sh
+          chmod +x create_egl_headers.sh
+          chmod +x create_glesv2_headers.sh
+          ./build.sh ${{ inputs.platform }} ${{ inputs.arch }}
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.platform }}.${{ inputs.arch }}
+          path: angle/angle.tar.gz
+          retention-days: 30
