@@ -162,13 +162,21 @@ jobs:
           out/build_xcframework.sh
           mv out/libEGL.xcframework .
           mv out/libGLESv2.xcframework .
-          tar -czvf angle.tar.gz *.xcframework
+          tar -czvf libEGL.xcframework.tar.gz libEGL.xcframework
+          tar -czvf libGLESv2.xcframework.tar.gz libGLESv2.xcframework
 
-      - name: Upload XCFramework Artifact
+      - name: Upload libEGL XCFramework Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: XCFramework
-          path: angle.tar.gz
+          name: libEGL.xcframework
+          path: libEGL.xcframework.tar.gz
+          retention-days: 30
+
+      - name: Upload libGLESv2 XCFramework Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libGLESv2.xcframework
+          path: libGLESv2.xcframework.tar.gz
           retention-days: 30
 
       - name: Create Release
@@ -177,7 +185,9 @@ jobs:
         with:
           tag_name: ${{ inputs.version_name }}.${{ github.run_id }}
           name: ${{ inputs.version_name }}.${{ github.run_id }}
-          files: angle.tar.gz
+          files: |
+            libEGL.xcframework.tar.gz
+            libGLESv2.xcframework.tar.gz
           draft: false
           prerelease: false
         env:

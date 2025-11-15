@@ -18,11 +18,19 @@ check_success
 
 export PATH=`pwd`/depot_tools:$PATH
 
-mkdir angle
+echo "Fetching source code"
+git clone https://chromium.googlesource.com/angle/angle
+check_success
+
 cd angle
 
-echo "Fetching source code"
-fetch angle
+python3 scripts/bootstrap.py
+check_success
+
+sed -i.bak -e "/'third_party\/catapult'\: /,+3d" -e "/'third_party\/dawn'\: /,+3d" -e "/'third_party\/llvm\/src'\: /,+3d" -e "/'third_party\/SwiftShader'\: /,+3d" -e "/'third_party\/VK-GL-CTS\/src'\: /,+3d" DEPS
+check_success
+
+gclient sync -f -D -R
 check_success
 
 echo "Apply Apple ANGLE patch"
