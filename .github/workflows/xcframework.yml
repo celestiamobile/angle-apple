@@ -183,8 +183,8 @@ jobs:
         if: inputs.version_name != ''
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ inputs.version_name }}.${{ github.run_id }}
-          name: ${{ inputs.version_name }}.${{ github.run_id }}
+          tag_name: ${{ inputs.version_name }}.${{ github.run_number }}
+          name: ${{ inputs.version_name }}.${{ github.run_number }}
           files: |
             libEGL.xcframework.tar.gz
             libGLESv2.xcframework.tar.gz
