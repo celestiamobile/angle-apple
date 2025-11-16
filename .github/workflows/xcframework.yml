@@ -162,21 +162,21 @@ jobs:
           out/build_xcframework.sh
           mv out/libEGL.xcframework .
           mv out/libGLESv2.xcframework .
-          tar -czvf libEGL.xcframework.tar.gz libEGL.xcframework
-          tar -czvf libGLESv2.xcframework.tar.gz libGLESv2.xcframework
+          zip -r -y libEGL.xcframework.zip libEGL.xcframework
+          zip -r -y libGLESv2.xcframework.zip libGLESv2.xcframework
 
       - name: Upload libEGL XCFramework Artifact
         uses: actions/upload-artifact@v4
         with:
           name: libEGL.xcframework
-          path: libEGL.xcframework.tar.gz
+          path: libEGL.xcframework.zip
           retention-days: 30
 
       - name: Upload libGLESv2 XCFramework Artifact
         uses: actions/upload-artifact@v4
         with:
           name: libGLESv2.xcframework
-          path: libGLESv2.xcframework.tar.gz
+          path: libGLESv2.xcframework.zip
           retention-days: 30
 
       - name: Create Release
@@ -186,8 +186,8 @@ jobs:
           tag_name: ${{ inputs.version_name }}.${{ github.run_number }}
           name: ${{ inputs.version_name }}.${{ github.run_number }}
           files: |
-            libEGL.xcframework.tar.gz
-            libGLESv2.xcframework.tar.gz
+            libEGL.xcframework.zip
+            libGLESv2.xcframework.zip
           draft: false
           prerelease: false
         env:
