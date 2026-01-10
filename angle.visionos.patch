@@ -26,10 +26,10 @@ index 48d6c5dfa7..07bc78c59f 100644
  #    endif
  #endif
 diff --git a/src/libANGLE/renderer/metal/DisplayMtl.mm b/src/libANGLE/renderer/metal/DisplayMtl.mm
-index 7cdf6bcef3..a74fd6278f 100644
+index 3f3092a6d2..2d6829b748 100644
 --- a/src/libANGLE/renderer/metal/DisplayMtl.mm
 +++ b/src/libANGLE/renderer/metal/DisplayMtl.mm
-@@ -1373,7 +1373,7 @@ bool DisplayMtl::supports32BitFloatFiltering() const
+@@ -1370,7 +1370,7 @@ bool DisplayMtl::supports32BitFloatFiltering() const
  
  bool DisplayMtl::supportsBCTextureCompression() const
  {
@@ -38,3 +38,16 @@ index 7cdf6bcef3..a74fd6278f 100644
      {
          return [mMetalDevice supportsBCTextureCompression];
      }
+diff --git a/src/libANGLE/renderer/metal/mtl_utils.mm b/src/libANGLE/renderer/metal/mtl_utils.mm
+index 9c4ddf726a..1f922ca7c2 100644
+--- a/src/libANGLE/renderer/metal/mtl_utils.mm
++++ b/src/libANGLE/renderer/metal/mtl_utils.mm
+@@ -897,7 +897,7 @@ angle::ObjCPtr<id<MTLLibrary>> CreateShaderLibrary(
+ // mathMode and mathFloatingPointFunctions are only available with macOS 15+ and iPhoneOS 18+
+ #if __MAC_OS_X_VERSION_MAX_ALLOWED >= 150000 || __IPHONE_OS_VERSION_MAX_ALLOWED >= 180000 || \
+     __TV_OS_VERSION_MAX_ALLOWED >= 180000 || TARGET_OS_VISION
+-        if (@available(macOS 15.0, iOS 18.0, *))
++        if (@available(macOS 15.0, iOS 18.0, tvOS 18.0, visionOS 2.0, *))
+         {
+             if (disableFastMath)
+             {
