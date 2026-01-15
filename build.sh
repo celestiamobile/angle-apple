@@ -30,6 +30,10 @@ check_success
 sed -i.bak -e "/'third_party\/catapult'\: /,+3d" -e "/'third_party\/dawn'\: /,+3d" -e "/'third_party\/llvm\/src'\: /,+3d" -e "/'third_party\/SwiftShader'\: /,+3d" -e "/'third_party\/VK-GL-CTS\/src'\: /,+3d" DEPS
 check_success
 
+# gn has an issue in https://gn.googlesource.com/gn/+/9673115bc14c8630da5b7f6fe07e0b362ac49dcb not giving output
+perl -i -0777 -pe "s/('package': 'gn\/gn\/mac-.*?version': 'git_revision:)[a-f0-9]+/\${1}5550ba0f4053c3cbb0bff3d60ded9d867b6fa371/gs" DEPS
+check_success
+
 gclient sync -f -D -R
 check_success
 
