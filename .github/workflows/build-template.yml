@@ -12,12 +12,12 @@ on:
       xcode-version:
         required: false
         type: string
-        default: '26.1'
+        default: '26.2'
 
 jobs:
   build:
     name: Build ${{ inputs.platform }} (${{ inputs.arch }})
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 120
     steps:
       - name: Checkout

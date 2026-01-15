@@ -3,12 +3,12 @@ jobs:
   displayName: 'Build'
   timeoutInMinutes: 120
   pool:
-    vmImage: macos-15
+    vmImage: macos-26
 
   variables:
     platform: ${{ parameters.platform }}
     arch: ${{ parameters.arch }}
-    xcodeVersion: ${{ '26.1' }}
+    xcodeVersion: ${{ '26.2' }}
 
   steps:
   - script: |
