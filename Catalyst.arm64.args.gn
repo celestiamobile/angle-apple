@@ -30,3 +30,4 @@ use_custom_libcxx = false
 symbol_level = 2
 enable_dsyms = true
 use_siso = false
+enable_rust = false
