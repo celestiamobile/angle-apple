@@ -12,7 +12,7 @@ on:
       xcode-version:
         required: false
         type: string
-        default: '26.2'
+        default: '26.4'
 
 jobs:
   build:
