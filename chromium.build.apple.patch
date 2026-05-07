@@ -1,8 +1,8 @@
 diff --git a/config/BUILDCONFIG.gn b/config/BUILDCONFIG.gn
-index e403e0cab..45e3c442f 100644
+index 00d3892f3..f4cc95dc5 100644
 --- a/config/BUILDCONFIG.gn
 +++ b/config/BUILDCONFIG.gn
-@@ -569,7 +569,7 @@ foreach(_target_type,
+@@ -585,7 +585,7 @@ foreach(_target_type,
          # When clang is used, some target may use clang module. This dependency
          # is required for things to work, regardless of whether the libc++
          # module is used in this target or not.
@@ -11,16 +11,16 @@ index e403e0cab..45e3c442f 100644
        }
  
        if (!defined(use_libcxx_modules)) {
-@@ -595,7 +595,7 @@ foreach(_target_type,
+@@ -623,7 +623,7 @@ foreach(_target_type,
  
        if (use_libcxx_modules) {
          # Add a dependency needed for Clang modules builds.
 -        deps += [ "//buildtools/third_party/libc++:all_modules" ]
 +        # deps += [ "//buildtools/third_party/libc++:all_modules" ]
-       }
  
-       # Consumed by the unsafe-buffers plugin during compile.
-@@ -687,7 +687,7 @@ foreach(_target_type,
+         if (!defined(invoker.generate_modulemap) &&
+             defined(generate_modulemap)) {
+@@ -723,7 +723,7 @@ foreach(_target_type,
          # When clang is used, some target may use clang module. This dependency
          # is required for things to work, regardless of whether the libc++
          # module is used in this target or not.
@@ -29,31 +29,20 @@ index e403e0cab..45e3c442f 100644
        }
  
        if (!defined(use_libcxx_modules)) {
-@@ -713,7 +713,7 @@ foreach(_target_type,
+@@ -761,7 +761,7 @@ foreach(_target_type,
  
        if (use_libcxx_modules) {
          # Add a dependency needed for Clang modules builds.
 -        deps += [ "//buildtools/third_party/libc++:all_modules" ]
 +        # deps += [ "//buildtools/third_party/libc++:all_modules" ]
-       }
  
-       # On Android, write shared library output file to metadata. We will use
+         if (!defined(invoker.generate_modulemap) &&
+             defined(generate_modulemap)) {
 diff --git a/config/compiler/BUILD.gn b/config/compiler/BUILD.gn
-index 8d6b60390..a34c1626c 100644
+index 2a6816891..30f4730a6 100644
 --- a/config/compiler/BUILD.gn
 +++ b/config/compiler/BUILD.gn
-@@ -546,8 +546,8 @@ config("compiler") {
-     }
- 
-     # TODO(crbug.com/500431896): Figure out why constant literals breaks tests.
--    cflags_objc = [ "-fno-objc-constant-literals" ]
--    cflags_objcc = [ "-fno-objc-constant-literals" ]
-+    # cflags_objc = [ "-fno-objc-constant-literals" ]
-+    # cflags_objcc = [ "-fno-objc-constant-literals" ]
-   }
- 
-   # Linux/Android/Fuchsia common flags setup.
-@@ -601,7 +601,7 @@ config("compiler") {
+@@ -585,7 +585,7 @@ config("compiler") {
      # Flags for diagnostics.
      cflags += [ "-fcolor-diagnostics" ]
      if (!is_win) {
@@ -62,7 +51,7 @@ index 8d6b60390..a34c1626c 100644
      } else {
        # Combine after https://github.com/llvm/llvm-project/pull/192241
        cflags += [ "/clang:-fdiagnostics-show-inlining-chain" ]
-@@ -636,13 +636,6 @@ config("compiler") {
+@@ -620,13 +620,6 @@ config("compiler") {
        ]
      }
  
@@ -76,7 +65,7 @@ index 8d6b60390..a34c1626c 100644
      # TODO(hans): Remove this once Clang generates better optimized debug info
      # by default. https://crbug.com/765793
      cflags += [
-@@ -1916,7 +1909,7 @@ ubsan_hardening("c_array_bounds") {
+@@ -1913,7 +1906,7 @@ ubsan_hardening("c_array_bounds") {
    # the related warning about "unsafe-buffer-usage-in-static-sized-array",
    # since we know that the array bounds sanitizing will catch any out-of-
    # bounds accesses.
@@ -85,7 +74,7 @@ index 8d6b60390..a34c1626c 100644
  }
  
  # Enable UBSan subset to ensure we always hit `return` statement in non-void
-@@ -2260,7 +2253,7 @@ config("default_warnings") {
+@@ -2257,7 +2250,7 @@ config("default_warnings") {
        "-Wno-uninitialized-const-pointer",
  
        # TODO(crbug.com/495753203): Fix and re-enable.
@@ -185,7 +174,7 @@ index 0177d5702..d25b76857 100644
      outputs = [ "{{bundle_contents_dir}}/PkgInfo" ]
  
 diff --git a/config/sanitizers/sanitizers.gni b/config/sanitizers/sanitizers.gni
-index 2c5d3b781..181f0910d 100644
+index 329a2fc8b..ee90ced77 100644
 --- a/config/sanitizers/sanitizers.gni
 +++ b/config/sanitizers/sanitizers.gni
 @@ -532,15 +532,15 @@ template("ubsan_hardening") {
@@ -208,10 +197,10 @@ index 2c5d3b781..181f0910d 100644
        if (defined(invoker.cflags)) {
          cflags += invoker.cflags
 diff --git a/toolchain/apple/toolchain.gni b/toolchain/apple/toolchain.gni
-index b1a1d5943..1cea8ca0f 100644
+index 0aa4e736f..82d3aebf2 100644
 --- a/toolchain/apple/toolchain.gni
 +++ b/toolchain/apple/toolchain.gni
-@@ -214,7 +214,7 @@ template("single_apple_toolchain") {
+@@ -215,7 +215,7 @@ template("single_apple_toolchain") {
      linker_driver_args = "-Wcrl,driver,$ld"
  
      # Specify an explicit path for the strip binary.
