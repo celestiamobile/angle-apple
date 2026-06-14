@@ -21,7 +21,7 @@ index 12595c1e3..09d1ee082 100644
          if (!defined(invoker.generate_modulemap) &&
              defined(generate_modulemap)) {
 diff --git a/config/compiler/BUILD.gn b/config/compiler/BUILD.gn
-index bfd161e90..135accc4a 100644
+index e1da11405..44adf7114 100644
 --- a/config/compiler/BUILD.gn
 +++ b/config/compiler/BUILD.gn
 @@ -577,7 +577,7 @@ config("compiler") {
@@ -47,7 +47,7 @@ index bfd161e90..135accc4a 100644
      # TODO(hans): Remove this once Clang generates better optimized debug info
      # by default. https://crbug.com/765793
      cflags += [
-@@ -1581,7 +1574,7 @@ ubsan_hardening("c_array_bounds") {
+@@ -1578,7 +1571,7 @@ ubsan_hardening("c_array_bounds") {
    # the related warning about "unsafe-buffer-usage-in-static-sized-array",
    # since we know that the array bounds sanitizing will catch any out-of-
    # bounds accesses.
@@ -56,7 +56,7 @@ index bfd161e90..135accc4a 100644
  }
  
  # Enable UBSan subset to ensure we always hit `return` statement in non-void
-@@ -1925,7 +1918,7 @@ config("default_warnings") {
+@@ -1922,7 +1915,7 @@ config("default_warnings") {
        "-Wno-uninitialized-const-pointer",
  
        # TODO(crbug.com/495753203): Fix and re-enable.
@@ -66,7 +66,7 @@ index bfd161e90..135accc4a 100644
  
      cflags_cc += [
 diff --git a/config/ios/BUILD.gn b/config/ios/BUILD.gn
-index 63f26f15c..d163bfac0 100644
+index d5e80c6b3..fe2776bbc 100644
 --- a/config/ios/BUILD.gn
 +++ b/config/ios/BUILD.gn
 @@ -322,6 +322,14 @@ group("xctest") {
@@ -156,10 +156,10 @@ index 0177d5702..d25b76857 100644
      outputs = [ "{{bundle_contents_dir}}/PkgInfo" ]
  
 diff --git a/config/sanitizers/sanitizers.gni b/config/sanitizers/sanitizers.gni
-index 329a2fc8b..ee90ced77 100644
+index 04d86c566..0ba957ed3 100644
 --- a/config/sanitizers/sanitizers.gni
 +++ b/config/sanitizers/sanitizers.gni
-@@ -532,15 +532,15 @@ template("ubsan_hardening") {
+@@ -533,15 +533,15 @@ template("ubsan_hardening") {
  
      if (_condition && !is_ubsan && is_clang) {
        cflags = [
@@ -179,10 +179,19 @@ index 329a2fc8b..ee90ced77 100644
        if (defined(invoker.cflags)) {
          cflags += invoker.cflags
 diff --git a/toolchain/apple/toolchain.gni b/toolchain/apple/toolchain.gni
-index 35addbb99..59f4e7e13 100644
+index a21f40edf..106562642 100644
 --- a/toolchain/apple/toolchain.gni
 +++ b/toolchain/apple/toolchain.gni
-@@ -216,7 +216,7 @@ template("single_apple_toolchain") {
+@@ -120,7 +120,7 @@ template("single_apple_toolchain") {
+       # here to force both contexts to stay in sync.
+       # LINT.IfChange(use_apple_linker)
+       use_apple_linker =
+-          host_os == "mac" && current_os == "mac" && !use_thin_lto &&
++          host_os == "mac" && !use_thin_lto &&
+           host_cpu == "arm64" && current_cpu == "arm64" &&
+           !(use_remoteexec && use_system_xcode)
+       use_lld = !use_apple_linker
+@@ -233,7 +233,7 @@ template("single_apple_toolchain") {
      linker_driver_args = "-Wcrl,driver,$ld"
  
      # Specify an explicit path for the strip binary.
