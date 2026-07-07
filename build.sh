@@ -24,7 +24,7 @@ check_success
 
 cd angle
 
-git checkout chromium/7871
+git checkout chromium/7922
 check_success
 
 python3 scripts/bootstrap.py
@@ -39,10 +39,6 @@ check_success
 echo "Apply Apple ANGLE patch"
 git apply ../angle.apple.patch --ignore-whitespace --whitespace=nowarn -3
 check_success
-
- echo "Apply Flip-y ANGLE patch"
- git apply ../flip_y.patch --ignore-whitespace --whitespace=nowarn -3
- check_success
 
 echo "Apply Variable Rasterization Rate Map ANGLE patch"
 git apply ../variable_rasterization_rate_map.patch --ignore-whitespace --whitespace=nowarn -3

@@ -1,8 +1,8 @@
 diff --git a/BUILD.gn b/BUILD.gn
-index 07e1268a57..3e4c1710ba 100644
+index c831acc0c0..611bdacba4 100644
 --- a/BUILD.gn
 +++ b/BUILD.gn
-@@ -707,17 +707,17 @@ angle_static_library("angle_gpu_info_util") {
+@@ -760,17 +760,17 @@ angle_static_library("angle_gpu_info_util") {
  
    if (is_apple) {
      frameworks = [
@@ -49,10 +49,10 @@ index 2c48a7eb04..18d0b32313 100644
  }
  }  // namespace angle
 diff --git a/src/common/system_utils_posix.cpp b/src/common/system_utils_posix.cpp
-index 76c5c99f0f..a99eff17fb 100644
+index 1caeb18a09..973e413e73 100644
 --- a/src/common/system_utils_posix.cpp
 +++ b/src/common/system_utils_posix.cpp
-@@ -197,7 +197,12 @@ void *OpenSystemLibraryWithExtensionAndGetError(const char *libraryName,
+@@ -201,7 +201,12 @@ void *OpenSystemLibraryWithExtensionAndGetError(const char *libraryName,
      std::string directory;
      if (searchType == SearchType::ModuleDir)
      {
@@ -80,13 +80,13 @@ index 5cef5d49ee..030d0ccad6 100644
  VendorID GetVendorIDFromMetalDeviceRegistryID(uint64_t registryID);
  #endif
 diff --git a/src/libANGLE/renderer/metal/metal_backend.gni b/src/libANGLE/renderer/metal/metal_backend.gni
-index ef8c6ad9f4..6f32c518d6 100644
+index 5bebe821bd..65adb18cb7 100644
 --- a/src/libANGLE/renderer/metal/metal_backend.gni
 +++ b/src/libANGLE/renderer/metal/metal_backend.gni
-@@ -90,8 +90,7 @@ metal_backend_sources = [
- # We can build the ANGLE internal shaders at build-time if we have access to the Mac SDK in the "build" dir.
- # Building internal shaders for iOS is not supported. The Chromium Mac SDK does not have all the required files.
- # This is also an issue when cross-compiling for mac.
+@@ -91,8 +91,7 @@ metal_backend_sources = [
+ # Mac SDK in the "build" dir. Building internal shaders for iOS is not
+ # supported. The Chromium Mac SDK does not have all the required files. This is
+ # also an issue when cross-compiling for mac.
 -metal_internal_shader_compilation_supported =
 -    angle_has_build && !is_ios && target_os == host_os
 +metal_internal_shader_compilation_supported = true
@@ -94,10 +94,10 @@ index ef8c6ad9f4..6f32c518d6 100644
  metal_internal_shaders_header =
      "$root_gen_dir/angle/mtl_internal_shaders_metallib.h"
 diff --git a/src/libGLESv2.gni b/src/libGLESv2.gni
-index 16ff4f6e9d..4258a09d5d 100644
+index ce5ab0ba89..6609bda45d 100644
 --- a/src/libGLESv2.gni
 +++ b/src/libGLESv2.gni
-@@ -130,7 +130,7 @@ if (is_apple) {
+@@ -132,7 +132,7 @@ if (is_apple) {
      "src/common/system_utils_apple.cpp",
      "src/common/system_utils_posix.cpp",
    ]
