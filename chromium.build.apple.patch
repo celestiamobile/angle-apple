@@ -1,30 +1,30 @@
 diff --git a/config/BUILDCONFIG.gn b/config/BUILDCONFIG.gn
-index f44478e5f..a44dfd2d3 100644
+index 2bd205bd7..d36ece740 100644
 --- a/config/BUILDCONFIG.gn
 +++ b/config/BUILDCONFIG.gn
-@@ -618,7 +618,7 @@ foreach(_target_type,
+@@ -630,7 +630,7 @@ foreach(_target_type,
  
        if (use_libcxx_modules) {
          # Add a dependency needed for Clang modules builds.
 -        deps += [ "//buildtools/third_party/libc++:all_modules" ]
 +        # deps += [ "//buildtools/third_party/libc++:all_modules" ]
+       }
  
-         if (!defined(invoker.generate_modulemap) &&
-             defined(generate_modulemap)) {
-@@ -749,7 +749,7 @@ foreach(_target_type,
+       # Consumed by the unsafe-buffers plugin during compile.
+@@ -760,7 +760,7 @@ foreach(_target_type,
  
        if (use_libcxx_modules) {
          # Add a dependency needed for Clang modules builds.
 -        deps += [ "//buildtools/third_party/libc++:all_modules" ]
 +        # deps += [ "//buildtools/third_party/libc++:all_modules" ]
+       }
  
-         if (!defined(invoker.generate_modulemap) &&
-             defined(generate_modulemap)) {
+       # On Android, write shared library output file to metadata. We will use
 diff --git a/config/compiler/BUILD.gn b/config/compiler/BUILD.gn
-index 7df3e18c4..d65a5f697 100644
+index dc3d9ec5a..e6d3d6a06 100644
 --- a/config/compiler/BUILD.gn
 +++ b/config/compiler/BUILD.gn
-@@ -578,7 +578,7 @@ config("compiler") {
+@@ -580,7 +580,7 @@ config("compiler") {
      cflags += [ "-fcolor-diagnostics" ]
      if (!is_wasm) {
        if (!is_win) {
@@ -33,7 +33,7 @@ index 7df3e18c4..d65a5f697 100644
        } else {
          # Combine after https://github.com/llvm/llvm-project/pull/192241
          cflags += [ "/clang:-fdiagnostics-show-inlining-chain" ]
-@@ -614,13 +614,6 @@ config("compiler") {
+@@ -616,13 +616,6 @@ config("compiler") {
        ]
      }
  
@@ -47,7 +47,7 @@ index 7df3e18c4..d65a5f697 100644
      # TODO(hans): Remove this once Clang generates better optimized debug info
      # by default. https://crbug.com/765793
      cflags += [
-@@ -1584,7 +1577,7 @@ ubsan_hardening("c_array_bounds") {
+@@ -1586,7 +1579,7 @@ ubsan_hardening("c_array_bounds") {
    # the related warning about "unsafe-buffer-usage-in-static-sized-array",
    # since we know that the array bounds sanitizing will catch any out-of-
    # bounds accesses.
@@ -56,7 +56,7 @@ index 7df3e18c4..d65a5f697 100644
  }
  
  # Enable UBSan subset to ensure we always hit `return` statement in non-void
-@@ -1935,7 +1928,7 @@ config("default_warnings") {
+@@ -1937,7 +1930,7 @@ config("default_warnings") {
          "-Wno-uninitialized-const-pointer",
  
          # TODO(crbug.com/495753203): Fix and re-enable.
@@ -156,10 +156,10 @@ index 26aab7450..668e6927c 100644
      outputs = [ "{{bundle_contents_dir}}/PkgInfo" ]
  
 diff --git a/config/sanitizers/sanitizers.gni b/config/sanitizers/sanitizers.gni
-index 3fd0b3934..e1f5120d9 100644
+index f20015697..9554656c3 100644
 --- a/config/sanitizers/sanitizers.gni
 +++ b/config/sanitizers/sanitizers.gni
-@@ -532,15 +532,15 @@ template("ubsan_hardening") {
+@@ -534,15 +534,15 @@ template("ubsan_hardening") {
  
      if (_condition && !is_ubsan && is_clang) {
        cflags = [

@@ -24,7 +24,7 @@ check_success
 
 cd angle
 
-git checkout chromium/7922
+git checkout chromium/7977
 check_success
 
 python3 scripts/bootstrap.py

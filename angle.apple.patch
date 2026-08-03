@@ -1,5 +1,5 @@
 diff --git a/BUILD.gn b/BUILD.gn
-index c831acc0c0..611bdacba4 100644
+index 81d5cb41c1..14b4d23bef 100644
 --- a/BUILD.gn
 +++ b/BUILD.gn
 @@ -760,17 +760,17 @@ angle_static_library("angle_gpu_info_util") {
@@ -49,10 +49,10 @@ index 2c48a7eb04..18d0b32313 100644
  }
  }  // namespace angle
 diff --git a/src/common/system_utils_posix.cpp b/src/common/system_utils_posix.cpp
-index 1caeb18a09..973e413e73 100644
+index 7b0b868e31..dd07e4f439 100644
 --- a/src/common/system_utils_posix.cpp
 +++ b/src/common/system_utils_posix.cpp
-@@ -201,7 +201,12 @@ void *OpenSystemLibraryWithExtensionAndGetError(const char *libraryName,
+@@ -198,7 +198,12 @@ void *OpenSystemLibraryWithExtensionAndGetError(const char *libraryName,
      std::string directory;
      if (searchType == SearchType::ModuleDir)
      {
@@ -80,21 +80,22 @@ index 5cef5d49ee..030d0ccad6 100644
  VendorID GetVendorIDFromMetalDeviceRegistryID(uint64_t registryID);
  #endif
 diff --git a/src/libANGLE/renderer/metal/metal_backend.gni b/src/libANGLE/renderer/metal/metal_backend.gni
-index 5bebe821bd..65adb18cb7 100644
+index d8ab2892d6..7d095058cb 100644
 --- a/src/libANGLE/renderer/metal/metal_backend.gni
 +++ b/src/libANGLE/renderer/metal/metal_backend.gni
-@@ -91,8 +91,7 @@ metal_backend_sources = [
- # Mac SDK in the "build" dir. Building internal shaders for iOS is not
- # supported. The Chromium Mac SDK does not have all the required files. This is
- # also an issue when cross-compiling for mac.
+@@ -101,9 +101,7 @@ declare_args() {
+ # explicit Metal toolchain via "angle_metal_toolchain_dir" opts in to
+ # precompiling the internal shaders anyway, which enables prebuilt internal
+ # shaders for iOS as well.
 -metal_internal_shader_compilation_supported =
--    angle_has_build && !is_ios && target_os == host_os
+-    angle_has_build &&
+-    (angle_metal_toolchain_dir != "" || (!is_ios && target_os == host_os))
 +metal_internal_shader_compilation_supported = true
  
  metal_internal_shaders_header =
      "$root_gen_dir/angle/mtl_internal_shaders_metallib.h"
 diff --git a/src/libGLESv2.gni b/src/libGLESv2.gni
-index ce5ab0ba89..6609bda45d 100644
+index 458bc1b1f0..dc833f7d57 100644
 --- a/src/libGLESv2.gni
 +++ b/src/libGLESv2.gni
 @@ -132,7 +132,7 @@ if (is_apple) {
