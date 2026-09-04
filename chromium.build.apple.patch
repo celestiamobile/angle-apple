@@ -21,7 +21,7 @@ index 538bb3d72..471cb6104 100644
  
        # On Android, write shared library output file to metadata. We will use
 diff --git a/config/compiler/BUILD.gn b/config/compiler/BUILD.gn
-index 652107318..41313544e 100644
+index 652107318..ca049b63b 100644
 --- a/config/compiler/BUILD.gn
 +++ b/config/compiler/BUILD.gn
 @@ -590,7 +590,7 @@ config("compiler") {
@@ -56,6 +56,15 @@ index 652107318..41313544e 100644
  }
  
  # Enable UBSan subset to ensure we always hit `return` statement in non-void
+@@ -1922,7 +1915,7 @@ config("default_warnings") {
+       "-Wno-psabi",
+     ]
+ 
+-    if (!is_wasm) {
++    if (!is_wasm && !is_apple) {
+       cflags += [
+         # TODO(crbug.com/526996813): Figure out what to do about this.
+         "-Wno-stringop-overread",
 @@ -1961,7 +1954,7 @@ config("default_warnings") {
          "-Wno-uninitialized-const-pointer",
  
@@ -179,7 +188,7 @@ index aaee2ad65..30c04b39d 100644
        if (defined(invoker.cflags)) {
          cflags += invoker.cflags
 diff --git a/toolchain/apple/toolchain.gni b/toolchain/apple/toolchain.gni
-index 4baa5be40..7729d36db 100644
+index 4baa5be40..7857694d9 100644
 --- a/toolchain/apple/toolchain.gni
 +++ b/toolchain/apple/toolchain.gni
 @@ -217,7 +217,7 @@ template("single_apple_toolchain") {
@@ -191,3 +200,49 @@ index 4baa5be40..7729d36db 100644
      _installnametoolpath = "${prefix}llvm-install-name-tool"
      linker_driver_args += " -Wcrl,strippath,${_strippath} -Wcrl,installnametoolpath,${_installnametoolpath}"
      _enable_dsyms = enable_dsyms
+@@ -579,10 +579,10 @@ template("single_apple_toolchain") {
+     }
+ 
+     tool("alink") {
+-      rspfile = "{{output}}.rsp"
+-      rspfile_content = "{{inputs}}"
+-
+       if (!toolchain_uses_lld) {
++        rspfile = "{{output}}.rsp"
++        rspfile_content = "{{inputs}}"
++
+         script = rebase_path("//build/toolchain/apple/filter_libtool.py",
+                              root_build_dir)
+ 
+@@ -595,8 +595,11 @@ template("single_apple_toolchain") {
+         command = "rm -f {{output}} && if [ -s \"$rspfile\" ]; then TOOL_VERSION=${tool_versions.filter_libtool} $python_path $script $libtool -static -D {{arflags}} -o {{output}} @$rspfile; else printf '!<arch>\n' > {{output}}; fi"
+         description = "LIBTOOL-STATIC {{output}}"
+       } else {
+-        ar = "${prefix}llvm-ar"
+-        command = "\"$ar\" {{arflags}} -r -c -s -D {{output}} @$rspfile"
++        # Xcode's toolchain does not ship llvm-ar, and its classic `ar` does
++        # not support @response-file argument expansion, so pass inputs
++        # directly and drop the (unsupported) -D determinism flag.
++        ar = "${prefix}ar"
++        command = "\"$ar\" {{arflags}} -r -c -s {{output}} {{inputs}}"
+ 
+         # Remove the output file first so that ar doesn't try to modify the
+         # existing file.
+diff --git a/toolchain/mac/BUILD.gn b/toolchain/mac/BUILD.gn
+index 8a6085bd3..100fb0edc 100644
+--- a/toolchain/mac/BUILD.gn
++++ b/toolchain/mac/BUILD.gn
+@@ -22,8 +22,11 @@ template("mac_toolchain") {
+       forward_variables_from(invoker.toolchain_args, "*")
+       current_os = "mac"
+       if (target_os == "ios") {
+-        # Use LLD for the host part of a chrome/ios build.
+-        use_lld = true
++        # Chromium normally forces LLD for the host part of a chrome/ios
++        # build, but our custom Apple toolchain (Xcode's own clang) does not
++        # ship an lld binary, so keep the host toolchain on Apple's native
++        # linker/ar instead.
++        use_lld = false
+ 
+         # Override `is_component_build` for the host toolchain.
+         # See https://crbug.com/gn/286 for details why this is
