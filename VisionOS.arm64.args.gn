@@ -12,7 +12,6 @@ ios_deployment_target = "1.0"
 angle_build_tests = false
 angle_enable_gl = false
 angle_enable_vulkan = false
-angle_enable_d3d9 = false
 angle_enable_d3d11 = false
 angle_enable_metal = true
 angle_enable_glsl = true
