@@ -37,28 +37,28 @@ gclient sync -f -D -R
 check_success
 
 echo "Apply Apple ANGLE patch"
-git apply ../angle.apple.patch --ignore-whitespace --whitespace=nowarn -3
+git apply ../angle.apple.patch --ignore-whitespace --whitespace=nowarn
 check_success
 
 echo "Apply Variable Rasterization Rate Map ANGLE patch"
-git apply ../variable_rasterization_rate_map.patch --ignore-whitespace --whitespace=nowarn -3
+git apply ../variable_rasterization_rate_map.patch --ignore-whitespace --whitespace=nowarn
 check_success
 
 echo "Apply visionOS ANGLE patch"
-git apply ../angle.visionos.patch --ignore-whitespace --whitespace=nowarn -3
+git apply ../angle.visionos.patch --ignore-whitespace --whitespace=nowarn
 check_success
 
 echo "Apply Metal compiler patch"
-git apply ../angle.metal.patch --ignore-whitespace --whitespace=nowarn -3
+git apply ../angle.metal.patch --ignore-whitespace --whitespace=nowarn
 check_success
 
 cd build
 echo "Apply Apple chromium build patch"
-git apply ../../chromium.build.apple.patch --ignore-whitespace --whitespace=nowarn -3
+git apply ../../chromium.build.apple.patch --ignore-whitespace --whitespace=nowarn
 check_success
 
 echo "Apply visionOS chromium build patch"
-git apply ../../chromium.build.visionos.patch --ignore-whitespace --whitespace=nowarn -3
+git apply ../../chromium.build.visionos.patch --ignore-whitespace --whitespace=nowarn
 check_success
 
 cd ..
