@@ -33,3 +33,4 @@ enable_dsyms = true
 use_siso = false
 enable_rust = false
 use_blink = true
+angle_enable_perfetto = false

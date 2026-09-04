@@ -368,10 +368,10 @@ index 374f795fdf..6ecfd88f38 100644
              SetParamVal<ParamType::TGLbitfield>(valueIn, valueOut);
              break;
 diff --git a/src/common/gl_enum_utils_autogen.cpp b/src/common/gl_enum_utils_autogen.cpp
-index 27b44ad85f..b56072ca70 100644
+index 7112933878..a80eb57d5e 100644
 --- a/src/common/gl_enum_utils_autogen.cpp
 +++ b/src/common/gl_enum_utils_autogen.cpp
-@@ -2812,6 +2812,10 @@ const char *GLenumToString(GLESEnum enumGroup, unsigned int value)
+@@ -2815,6 +2815,10 @@ const char *GLenumToString(GLESEnum enumGroup, unsigned int value)
                      return "GL_RGBX8_ANGLE";
                  case 0x96BB:
                      return "GL_SHADER_BINARY_ANGLE";
@@ -382,7 +382,16 @@ index 27b44ad85f..b56072ca70 100644
                  case 0x96BE:
                      return "GL_PROGRAM_BINARY_READY_ANGLE";
                  case 0x96C0:
-@@ -11840,6 +11844,7 @@ static StringEnumEntry g_stringEnumTable[] = {
+@@ -8665,7 +8669,7 @@ struct StringEnumEntry
+     unsigned int enumValue;
+ };
+ 
+-constexpr std::array<StringEnumEntry, 6204> g_stringEnumTable = {{
++constexpr std::array<StringEnumEntry, 6206> g_stringEnumTable = {{
+     {"GL_1PASS_EXT", 0x80A1},
+     {"GL_1PASS_SGIS", 0x80A1},
+     {"GL_2D", 0x0600},
+@@ -11848,6 +11852,7 @@ constexpr std::array<StringEnumEntry, 6204> g_stringEnumTable = {{
      {"GL_MESH_VERTICES_OUT_NV", 0x9579},
      {"GL_MESH_WORK_GROUP_SIZE_EXT", 0x953E},
      {"GL_MESH_WORK_GROUP_SIZE_NV", 0x953E},
@@ -390,7 +399,7 @@ index 27b44ad85f..b56072ca70 100644
      {"GL_MIN", 0x8007},
      {"GL_MINMAX", 0x802E},
      {"GL_MINMAX_EXT", 0x802E},
-@@ -14542,6 +14547,7 @@ static StringEnumEntry g_stringEnumTable[] = {
+@@ -14550,6 +14555,7 @@ constexpr std::array<StringEnumEntry, 6204> g_stringEnumTable = {{
      {"GL_VARIABLE_E_NV", 0x8527},
      {"GL_VARIABLE_F_NV", 0x8528},
      {"GL_VARIABLE_G_NV", 0x8529},
