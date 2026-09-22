@@ -83,7 +83,7 @@ build_angle()
     check_success
     out/$1/$2/bundle_in_framework.sh
     check_success
-    MIN_MAC_VERSION=12.0
+    MIN_MAC_VERSION=13.0
     ../generate_info_plist.sh `pwd`/../Info.plist `pwd`/out/$1/$2/libEGL.framework/Versions/A/Resources/Info.plist org.chromium.ost.libEGL libEGL $MIN_MAC_VERSION
     ../generate_info_plist.sh `pwd`/../Info.plist `pwd`/out/$1/$2/libGLESv2.framework/Versions/A/Resources/Info.plist org.chromium.ost.libGLESv2 libGLESv2 $MIN_MAC_VERSION
 

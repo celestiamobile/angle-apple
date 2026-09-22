@@ -14,29 +14,29 @@ index 50ac42a5b9..924e965281 100644
 +        if (target_environment == "catalyst") {
 +          args += [
 +            "--std=macos-metal2.1",
-+            "-target", "air64-apple-ios13.1-macabi",
++            "-target", "air64-apple-ios16.0-macabi",
 +          ]
 +        } else if (target_environment == "simulator") {
 +          args += [
 +            "--std=ios-metal2.1",
-+            "-target", "air64-apple-ios12.0-simulator",
++            "-target", "air64-apple-ios16.0-simulator",
 +          ]
 +        } else {
 +          args += [
 +            "--std=ios-metal2.1",
-+            "-target", "air64-apple-ios12.0",
++            "-target", "air64-apple-ios16.0",
 +          ]
 +        }
 +      } else if (target_platform == "tvos") {
 +        if (target_environment == "simulator") {
 +          args += [
 +            "--std=ios-metal2.1",
-+            "-target", "air64-apple-tvos1.0-simulator",
++            "-target", "air64-apple-tvos16.0-simulator",
 +          ]
 +        } else {
 +          args += [
 +            "--std=ios-metal2.1",
-+            "-target", "air64-apple-tvos12.0",
++            "-target", "air64-apple-tvos16.0",
 +          ]
 +        }
 +      } else if (target_platform == "xros") {
