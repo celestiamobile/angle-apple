@@ -1,0 +1,359 @@
+WebKit ANGLE correctness backports for chromium/8127.
+Apply after angle.metal.patch and the preceding patches in build.sh.
+
+ANGLE: Metal: LINE_LOOP closing segment is drawn with no render pipeline state after a no-op draw
+https://github.com/WebKit/WebKit/commit/0914bda141cdce2217b6663d0c0dc48fb88d1f1b
+
+ANGLE: Metal draws a reversed depth range unreversed after a viewport or framebuffer change
+https://github.com/WebKit/WebKit/commit/6a307c54eea6cf954889d7a090b38aaa574e0556
+diff --git a/src/libANGLE/renderer/metal/ContextMtl.h b/src/libANGLE/renderer/metal/ContextMtl.h
+index 741a0f042c..09c1852934 100644
+--- a/src/libANGLE/renderer/metal/ContextMtl.h
++++ b/src/libANGLE/renderer/metal/ContextMtl.h
+@@ -484,12 +484,15 @@ class ContextMtl : public ContextImpl, public mtl::Context
+                                                 GLsizei instances,
+                                                 GLuint baseInstance);
+ 
++    // isNoOpOut, when given, is set to false only if a draw call was issued into the current
++    // render command encoder.
+     angle::Result drawArraysImpl(const gl::Context *context,
+                                  gl::PrimitiveMode mode,
+                                  GLint first,
+                                  GLsizei count,
+                                  GLsizei instanceCount,
+-                                 GLuint baseInstance);
++                                 GLuint baseInstance,
++                                 bool *isNoOpOut = nullptr);
+ 
+     angle::Result drawElementsImpl(const gl::Context *context,
+                                    gl::PrimitiveMode mode,
+@@ -498,7 +501,8 @@ class ContextMtl : public ContextImpl, public mtl::Context
+                                    const void *indices,
+                                    GLsizei instanceCount,
+                                    GLint baseVertex,
+-                                   GLuint baseInstance);
++                                   GLuint baseInstance,
++                                   bool *isNoOpOut = nullptr);
+     void flushCommandBufferIfNeeded();
+     void updateExtendedState(const gl::State &glState,
+                              const gl::state::ExtendedDirtyBits extendedDirtyBits);
+diff --git a/src/libANGLE/renderer/metal/ContextMtl.mm b/src/libANGLE/renderer/metal/ContextMtl.mm
+index 7596015240..640915486c 100644
+--- a/src/libANGLE/renderer/metal/ContextMtl.mm
++++ b/src/libANGLE/renderer/metal/ContextMtl.mm
+@@ -116,21 +116,18 @@ bool IsTransformFeedbackOnly(const gl::State &glState)
+     return glState.isTransformFeedbackActiveUnpaused() && glState.isRasterizerDiscardEnabled();
+ }
+ 
+-// This class constructs line loop's last segment buffer inside begin() method
+-// and perform the draw of the line loop's last segment inside destructor
++// This class constructs line loop's last segment buffer inside begin() method. The last segment
++// is drawn by drawLastSegment(), which must only be called if the main draw was issued: when the
++// main draw is skipped, no render pipeline state is set on the render command encoder.
+ class LineLoopLastSegmentHelper
+ {
+   public:
+     LineLoopLastSegmentHelper() {}
+ 
+-    ~LineLoopLastSegmentHelper()
++    void drawLastSegment()
+     {
+-        if (mLineLoopIndexBuffer.empty())
+-        {
+-            return;
+-        }
++        ASSERT(!mLineLoopIndexBuffer.empty());
+ 
+-        // Draw last segment of line loop here
+         mtl::RenderCommandEncoder *encoder = mContextMtl->getRenderCommandEncoder();
+         ASSERT(encoder);
+         encoder->drawIndexed(MTLPrimitiveTypeLine, 2, MTLIndexTypeUInt32,
+@@ -402,14 +399,21 @@ angle::Result ContextMtl::drawLineLoopArraysNonInstanced(const gl::Context *cont
+                                                          GLint first,
+                                                          GLsizei count)
+ {
+-    // Generate line loop's last segment. It will be rendered when this function exits.
++    // Generate line loop's last segment. It will be rendered after the line strip below.
+     LineLoopLastSegmentHelper lineloopHelper;
+     // Line loop helper needs to generate last segment indices before rendering command encoder
+     // starts.
+     ANGLE_TRY(lineloopHelper.begin(context, &mLineLoopLastSegmentIndexBuffer, first, count,
+                                    gl::DrawElementsType::InvalidEnum, nullptr));
+ 
+-    return drawArraysImpl(context, gl::PrimitiveMode::LineStrip, first, count, 0, 0);
++    bool isNoOp = false;
++    ANGLE_TRY(drawArraysImpl(context, gl::PrimitiveMode::LineStrip, first, count, 0, 0, &isNoOp));
++    if (!isNoOp)
++    {
++        lineloopHelper.drawLastSegment();
++    }
++
++    return angle::Result::Continue;
+ }
+ 
+ angle::Result ContextMtl::drawLineLoopArrays(const gl::Context *context,
+@@ -461,8 +465,16 @@ angle::Result ContextMtl::drawArraysImpl(const gl::Context *context,
+                                          GLint first,
+                                          GLsizei count,
+                                          GLsizei instances,
+-                                         GLuint baseInstance)
++                                         GLuint baseInstance,
++                                         bool *isNoOpOut)
+ {
++    // Assume no draw call is issued until one is. Callers use this to tell whether the render
++    // command encoder has been set up for drawing.
++    if (isNoOpOut)
++    {
++        *isNoOpOut = true;
++    }
++
+     // Real instances count. Zero means this is not instanced draw.
+     GLsizei instanceCount = instances ? instances : 1;
+ 
+@@ -507,6 +519,10 @@ angle::Result ContextMtl::drawArraysImpl(const gl::Context *context,
+         bool isNoOp = false;                                                                       \
+         ANGLE_TRY(setupDraw(context, first, count, instances, gl::DrawElementsType::InvalidEnum,   \
+                             nullptr, xfbPass, &isNoOp));                                           \
++        if (isNoOpOut)                                                                             \
++        {                                                                                          \
++            *isNoOpOut = isNoOp;                                                                   \
++        }                                                                                          \
+         if (!isNoOp)                                                                               \
+         {                                                                                          \
+                                                                                                    \
+@@ -625,13 +641,21 @@ angle::Result ContextMtl::drawLineLoopElementsNonInstancedNoPrimitiveRestart(
+     gl::DrawElementsType type,
+     const void *indices)
+ {
+-    // Generate line loop's last segment. It will be rendered when this function exits.
++    // Generate line loop's last segment. It will be rendered after the line strip below.
+     LineLoopLastSegmentHelper lineloopHelper;
+     // Line loop helper needs to generate index before rendering command encoder starts.
+     ANGLE_TRY(
+         lineloopHelper.begin(context, &mLineLoopLastSegmentIndexBuffer, 0, count, type, indices));
+ 
+-    return drawElementsImpl(context, gl::PrimitiveMode::LineStrip, count, type, indices, 0, 0, 0);
++    bool isNoOp = false;
++    ANGLE_TRY(drawElementsImpl(context, gl::PrimitiveMode::LineStrip, count, type, indices, 0, 0, 0,
++                               &isNoOp));
++    if (!isNoOp)
++    {
++        lineloopHelper.drawLastSegment();
++    }
++
++    return angle::Result::Continue;
+ }
+ 
+ angle::Result ContextMtl::drawLineLoopElements(const gl::Context *context,
+@@ -784,8 +808,16 @@ angle::Result ContextMtl::drawElementsImpl(const gl::Context *context,
+                                            const void *indices,
+                                            GLsizei instances,
+                                            GLint baseVertex,
+-                                           GLuint baseInstance)
++                                           GLuint baseInstance,
++                                           bool *isNoOpOut)
+ {
++    // Assume no draw call is issued until one is. Callers use this to tell whether the render
++    // command encoder has been set up for drawing.
++    if (isNoOpOut)
++    {
++        *isNoOpOut = true;
++    }
++
+     // Real instances count. Zero means this is not instanced draw.
+     GLsizei instanceCount = instances ? instances : 1;
+ 
+@@ -816,6 +848,10 @@ angle::Result ContextMtl::drawElementsImpl(const gl::Context *context,
+ 
+     bool isNoOp = false;
+     ANGLE_TRY(setupDraw(context, 0, count, instances, type, indices, false, &isNoOp));
++    if (isNoOpOut)
++    {
++        *isNoOpOut = isNoOp;
++    }
+     if (!isNoOp)
+     {
+         MTLPrimitiveType mtlType = mtl::GetPrimitiveType(newMode);
+@@ -2087,6 +2123,11 @@ void ContextMtl::updateViewport(FramebufferMtl *framebufferMtl,
+                                 float nearPlane,
+                                 float farPlane)
+ {
++    if (NeedToInvertDepthRange(nearPlane, farPlane))
++    {
++        // As in updateDepthRange(), the shader inverts the depth of a reversed range.
++        std::swap(nearPlane, farPlane);
++    }
+     int screenHeight = framebufferMtl->getState().getDimensions().height;
+     id<MTLRasterizationRateMap> rateMap = getState().privateState().isVariableRasterizationRateEnabled() ? mRasterizationRateMap.get() : nil;
+     if (rateMap != nil)
+diff --git a/src/tests/angle_end2end_tests_expectations.txt b/src/tests/angle_end2end_tests_expectations.txt
+index a5d5371b2a..7c56178f00 100644
+--- a/src/tests/angle_end2end_tests_expectations.txt
++++ b/src/tests/angle_end2end_tests_expectations.txt
+@@ -2542,6 +2542,8 @@
+ // 383356846 ubyte index formats are not fully supported yet.
+ 383356846 WGPU : LineLoopTest.*UShort* = SKIP
+ 383356846 WGPU : LineLoopTest.*BufferBlend* = SKIP
++// The WebGPU backend does not support depth ranges with near > far yet.
++0 WGPU : ViewportTest.ReversedDepthRangeAfterViewportAndFramebufferChanges/* = SKIP
+ 
+ 42266907 WGPU : AddMockTextureNoRenderTargetTest.NoProgramOutputWorkaround/* = SKIP
+ 42266907 WGPU : AttributeLayoutBufferIndexed.Test/* = SKIP
+diff --git a/src/tests/gl_tests/LineLoopTest.cpp b/src/tests/gl_tests/LineLoopTest.cpp
+index e71d77cbf8..a3f9ad263c 100644
+--- a/src/tests/gl_tests/LineLoopTest.cpp
++++ b/src/tests/gl_tests/LineLoopTest.cpp
+@@ -864,6 +864,107 @@ TEST_P(LineLoopTestES3, UseAsUBOThenUpdateThenLineLoopUIntIndexBuffer)
+     EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::green);
+ }
+ 
++// Test that the closing segment of a line loop is rendered when drawing into a framebuffer object.
++// Backends that emulate line loops as a line strip plus a separate draw for the closing segment
++// have to issue that second draw; this reads back texels that only the closing edge covers.
++TEST_P(LineLoopTestES3, LineLoopClosingSegmentIntoFramebuffer)
++{
++    constexpr GLsizei kSize = 8;
++
++    GLTexture texture;
++    glBindTexture(GL_TEXTURE_2D, texture);
++    glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, kSize, kSize);
++
++    GLFramebuffer framebuffer;
++    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
++    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0);
++    ASSERT_GLENUM_EQ(GL_FRAMEBUFFER_COMPLETE, glCheckFramebufferStatus(GL_FRAMEBUFFER));
++
++    glViewport(0, 0, kSize, kSize);
++    glDisable(GL_BLEND);
++    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
++
++    // An axis-aligned square whose corners land exactly on the pixel centers of columns and rows 1
++    // and 6. The vertices are ordered so that the three explicit segments are the bottom, right and
++    // top edges; the left edge, column 1, is covered only by the closing segment.
++    constexpr GLfloat kLow     = (1.5f / kSize) * 2.0f - 1.0f;
++    constexpr GLfloat kHigh    = (6.5f / kSize) * 2.0f - 1.0f;
++    const GLfloat kPositions[] = {kLow, kLow, kHigh, kLow, kHigh, kHigh, kLow, kHigh};
++
++    constexpr GLushort kIndices[] = {0, 1, 2, 3};
++    GLBuffer indexBuffer;
++    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer);
++    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(kIndices), kIndices, GL_STATIC_DRAW);
++
++    glUseProgram(mProgram);
++    glBindBuffer(GL_ARRAY_BUFFER, 0);
++    glEnableVertexAttribArray(mPositionLocation);
++    glVertexAttribPointer(mPositionLocation, 2, GL_FLOAT, GL_FALSE, 0, kPositions);
++    glUniform4f(mColorLocation, 1.0f, 0.0f, 0.0f, 1.0f);
++
++    // Both the array and the element draw paths generate the closing segment separately.
++    for (bool indexed : {false, true})
++    {
++        glClear(GL_COLOR_BUFFER_BIT);
++        if (indexed)
++        {
++            glDrawElements(GL_LINE_LOOP, 4, GL_UNSIGNED_SHORT, nullptr);
++        }
++        else
++        {
++            glDrawArrays(GL_LINE_LOOP, 0, 4);
++        }
++        ASSERT_GL_NO_ERROR();
++
++        // The three explicit segments.
++        EXPECT_PIXEL_COLOR_EQ(3, 1, GLColor::red) << "indexed: " << indexed;
++        EXPECT_PIXEL_COLOR_EQ(6, 3, GLColor::red) << "indexed: " << indexed;
++        EXPECT_PIXEL_COLOR_EQ(3, 6, GLColor::red) << "indexed: " << indexed;
++
++        // The closing segment, away from the corners it shares with the bottom and top edges.
++        EXPECT_PIXEL_COLOR_EQ(1, 3, GLColor::red) << "indexed: " << indexed;
++        EXPECT_PIXEL_COLOR_EQ(1, 4, GLColor::red) << "indexed: " << indexed;
++
++        // Nothing was drawn inside the loop.
++        EXPECT_PIXEL_COLOR_EQ(3, 3, GLColor::black) << "indexed: " << indexed;
++    }
++}
++
++// Test that a line loop draw into a framebuffer whose draw buffer 0 has no attachment does not
++// crash. The framebuffer is complete, but the draw renders nowhere, so a backend may skip it
++// entirely; the draw for the closing segment has to be skipped along with it, otherwise it is
++// recorded on a render pass that was never set up for drawing.
++TEST_P(LineLoopTestES3, LineLoopWithNothingBoundToDrawBufferZero)
++{
++    GLTexture texture;
++    glBindTexture(GL_TEXTURE_2D, texture);
++    glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, 16, 16);
++
++    // Attach the texture to COLOR_ATTACHMENT1 only. Draw buffer 0 is COLOR_ATTACHMENT0, which has
++    // no attachment, and draw buffer 1 is NONE.
++    GLFramebuffer framebuffer;
++    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, framebuffer);
++    glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, texture, 0);
++    ASSERT_GLENUM_EQ(GL_FRAMEBUFFER_COMPLETE, glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER));
++
++    const GLfloat kPositions[] = {-0.5f, -0.5f, 0.5f, -0.5f, 0.5f, 0.5f, -0.5f, 0.5f};
++
++    glUseProgram(mProgram);
++    glBindBuffer(GL_ARRAY_BUFFER, 0);
++    glEnableVertexAttribArray(mPositionLocation);
++    glVertexAttribPointer(mPositionLocation, 2, GL_FLOAT, GL_FALSE, 0, kPositions);
++    glUniform4f(mColorLocation, 1.0f, 0.0f, 0.0f, 1.0f);
++
++    glDrawArrays(GL_LINE_LOOP, 0, 4);
++
++    static const GLushort kIndices[] = {0, 1, 2, 3};
++    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
++    glDrawElements(GL_LINE_LOOP, 4, GL_UNSIGNED_SHORT, kIndices);
++
++    glFinish();
++    EXPECT_GL_NO_ERROR();
++}
++
+ // Test an edge case in the D3D11 backend where a large index array of GL_UNSIGNED_BYTE
+ // drawn as a GL_LINE_LOOP is widened to 32-bits internally and overflows.
+ // Disabled because it slow and triggers an internal error.
+diff --git a/src/tests/gl_tests/ViewportTest.cpp b/src/tests/gl_tests/ViewportTest.cpp
+index 8c58a7af09..732272aad3 100644
+--- a/src/tests/gl_tests/ViewportTest.cpp
++++ b/src/tests/gl_tests/ViewportTest.cpp
+@@ -433,6 +433,41 @@ TEST_P(ViewportTest, ClampOnStore)
+     ASSERT_EQ(viewport[3], maxDims[1]);
+ }
+ 
++// Tests that a reversed depth range stays in effect after the viewport or the framebuffer changes.
++TEST_P(ViewportTest, ReversedDepthRangeAfterViewportAndFramebufferChanges)
++{
++    constexpr char kFS[] = R"(precision highp float;
++void main()
++{
++    gl_FragColor = vec4(gl_FragCoord.z, 0.0, 0.0, 1.0);
++})";
++    ANGLE_GL_PROGRAM(program, essl1_shaders::vs::Simple(), kFS);
++
++    // The window depth is n + (f - n) * (z + 1) / 2, also when n > f: 0.375 for z = 0.5.
++    glDepthRangef(0.75f, 0.25f);
++    constexpr float kExpectedRed = 0.375f * 255.0f;
++    // Draw before changing the viewport so that the depth range change is not pending anymore.
++    drawQuad(program, essl1_shaders::PositionAttrib(), 0.5f);
++    ASSERT_GL_NO_ERROR();
++    EXPECT_PIXEL_NEAR(getWindowWidth() / 2, getWindowHeight() / 2, kExpectedRed, 0, 0, 255, 1);
++
++    glViewport(0, 0, getWindowWidth() / 2, getWindowHeight());
++    drawQuad(program, essl1_shaders::PositionAttrib(), 0.5f);
++    ASSERT_GL_NO_ERROR();
++    EXPECT_PIXEL_NEAR(getWindowWidth() / 4, getWindowHeight() / 2, kExpectedRed, 0, 0, 255, 1);
++
++    GLTexture texture;
++    glBindTexture(GL_TEXTURE_2D, texture);
++    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
++    GLFramebuffer framebuffer;
++    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
++    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0);
++    ASSERT_GL_FRAMEBUFFER_COMPLETE(GL_FRAMEBUFFER);
++    drawQuad(program, essl1_shaders::PositionAttrib(), 0.5f);
++    ASSERT_GL_NO_ERROR();
++    EXPECT_PIXEL_NEAR(0, 0, kExpectedRed, 0, 0, 255, 1);
++}
++
+ // Use this to select which configurations (e.g. which renderer, which GLES major version) these
+ // tests should be run against.
+ ANGLE_INSTANTIATE_TEST_ES2_AND(ViewportTest, ES2_D3D11_PRESENT_PATH_FAST());

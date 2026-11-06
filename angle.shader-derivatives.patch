@@ -1,0 +1,93 @@
+WebKit ANGLE correctness backports for chromium/8127.
+Apply after angle.metal.patch and the preceding patches in build.sh.
+
+[ANGLE] Nested dFdx/dFdy calls reaches an ASSERT during derivative rewriting
+https://github.com/WebKit/WebKit/commit/ff7b5ea1d73520cf1c823858d553ff1cf1b477d4
+diff --git a/src/compiler/translator/tree_ops/RewriteDfdy.cpp b/src/compiler/translator/tree_ops/RewriteDfdy.cpp
+index 5126689412..244bc7c4ff 100644
+--- a/src/compiler/translator/tree_ops/RewriteDfdy.cpp
++++ b/src/compiler/translator/tree_ops/RewriteDfdy.cpp
+@@ -99,13 +99,21 @@ bool Traverser::visitAggregate(Visit visit, TIntermAggregate *node)
+ 
+     // Replace the old dFdx() or dFdy() node with the new node that contains the corrected value
+     //
+-    // Note the following bugs (anglebug.com/42265816):
++    // Note the following limitations (anglebug.com/42265816):
+     //
+-    // - Side effects of operand are duplicated with the above
+-    // - If the direct child of this node is itself dFdx/y, its queueReplacement will not be
+-    //   effective as the parent is also replaced.
++    // - Side effects of operand are duplicated with the above.
++    // - If the operand is itself dFdx/dFdy, the derivatives under it are left unrotated and
++    //   unflipped (see below).
+     queueReplacement(rotatedFlippedResult, OriginalNode::IS_DROPPED);
+ 
++    // Do not recurse into a dFdx/dFdy operand. A queued replacement of the operand records this
++    // node as its parent, which updateTree() redirects to the new expression. The operand is not
++    // a direct child of that expression, so the replacement would fail.
++    TIntermAggregate *operandAgg = operand->getAsAggregate();
++    if (operandAgg && (operandAgg->getOp() == EOpDFdx || operandAgg->getOp() == EOpDFdy))
++    {
++        return false;
++    }
+     return true;
+ }
+ }  // anonymous namespace
+diff --git a/src/tests/gl_tests/GLSLTest.cpp b/src/tests/gl_tests/GLSLTest.cpp
+index fd068a9899..4087ca29b0 100644
+--- a/src/tests/gl_tests/GLSLTest.cpp
++++ b/src/tests/gl_tests/GLSLTest.cpp
+@@ -7974,6 +7974,53 @@ void main()
+     EXPECT_PIXEL_RECT_EQ(0, 0, getWindowWidth(), getWindowHeight(), GLColor::yellow);
+ }
+ 
++// Test that a derivative applied to another derivative compiles. A derivative that is the direct
++// operand of another one used to queue a replacement whose parent was already dropped by the
++// RewriteDfdy pass, tripping ASSERT(replaced) in TIntermTraverser::updateTree().
++TEST_P(GLSLTest_ES3, NestedDerivatives)
++{
++    // The operand has to be non-constant, otherwise the derivatives are folded to zero before the
++    // rewrite runs.
++    constexpr char kFSPrefix[] = R"(#version 300 es
++precision mediump float;
++uniform float u;
++out vec4 color;
++void main()
++{
++    color = vec4()";
++    constexpr char kFSSuffix[] = R"();
++})";
++
++    for (const char *expression : {"dFdy(dFdy(u))", "dFdx(dFdx(u))", "dFdx(dFdy(u))",
++                                   "dFdy(dFdx(u))", "dFdy(dFdy(dFdy(u)))", "dFdy(u + dFdy(u))"})
++    {
++        const std::string fs = std::string(kFSPrefix) + expression + kFSSuffix;
++
++        GLuint shader = CompileShader(GL_FRAGMENT_SHADER, fs.c_str());
++        EXPECT_NE(0u, shader) << expression;
++        glDeleteShader(shader);
++    }
++    ASSERT_GL_NO_ERROR();
++}
++
++// Test that a nested derivative survives the RewriteDfdy rewrite and can be linked and drawn. The
++// value of a derivative of a derivative is implementation defined, so it is not checked.
++TEST_P(GLSLTest_ES3, NestedDerivativesDraw)
++{
++    constexpr char kFS[] = R"(#version 300 es
++precision mediump float;
++uniform float u;
++out vec4 color;
++void main()
++{
++    color = vec4(dFdy(dFdy(u)), 0, 0, 1);
++})";
++
++    ANGLE_GL_PROGRAM(program, essl3_shaders::vs::Simple(), kFS);
++    drawQuad(program, essl3_shaders::PositionAttrib(), 0.5f);
++    ASSERT_GL_NO_ERROR();
++}
++
+ // Test that a varying struct that's not statically used in the fragment shader works.
+ // GLSL ES 3.00.6 section 4.3.10.
+ TEST_P(GLSLTest_ES3, VaryingStructNotStaticallyUsedInFragmentShader)

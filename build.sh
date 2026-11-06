@@ -24,7 +24,7 @@ check_success
 
 cd angle
 
-git checkout chromium/8078
+git checkout chromium/8127
 check_success
 
 python3 scripts/bootstrap.py
@@ -50,6 +50,22 @@ check_success
 
 echo "Apply Metal compiler patch"
 git apply ../angle.metal.patch --ignore-whitespace --whitespace=nowarn
+check_success
+
+echo "Apply Metal rendering fixes"
+git apply ../angle.metal-rendering.patch --ignore-whitespace --whitespace=nowarn
+check_success
+
+echo "Apply buffer bounds fixes"
+git apply ../angle.buffer-bounds.patch --ignore-whitespace --whitespace=nowarn
+check_success
+
+echo "Apply resource map iteration fix"
+git apply ../angle.resource-map.patch --ignore-whitespace --whitespace=nowarn
+check_success
+
+echo "Apply shader derivative fix"
+git apply ../angle.shader-derivatives.patch --ignore-whitespace --whitespace=nowarn
 check_success
 
 cd build

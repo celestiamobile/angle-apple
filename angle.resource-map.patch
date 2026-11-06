@@ -1,0 +1,226 @@
+WebKit ANGLE correctness backports for chromium/8127.
+Apply after angle.metal.patch and the preceding patches in build.sh.
+
+REGRESSION(318915@main): ANGLE: QueryContext EGL_CONTEXT_MEMORY_USAGE_ANGLE crashes with a large number of reserved names
+https://github.com/WebKit/WebKit/commit/ce11d7461d63a73d34fad9e69baaceb4205b8acc
+diff --git a/src/libANGLE/ResourceMap.h b/src/libANGLE/ResourceMap.h
+index febdb15d64..44a4b22256 100644
+--- a/src/libANGLE/ResourceMap.h
++++ b/src/libANGLE/ResourceMap.h
+@@ -179,6 +179,7 @@ class ResourceMap final : angle::NonCopyable
+                  GLuint flatIndex,
+                  typename HashMap::const_iterator hashIndex,
+                  bool skipNulls);
++        void skipNullHashedResources();
+         void updateValue();
+ 
+         const ResourceMap &mOrigin;
+@@ -623,6 +624,7 @@ ResourceMap<ResourceType, IDType>::Iterator::Iterator(
+     bool skipNulls)
+     : mOrigin(origin), mFlatIndex(flatIndex), mHashIndex(hashIndex), mSkipNulls(skipNulls)
+ {
++    skipNullHashedResources();
+     updateValue();
+ }
+ 
+@@ -650,6 +652,7 @@ ResourceMap<ResourceType, IDType>::Iterator::operator++()
+     {
+         mHashIndex++;
+     }
++    skipNullHashedResources();
+     updateValue();
+     return *this;
+ }
+@@ -668,6 +671,21 @@ ResourceMap<ResourceType, IDType>::Iterator::operator*() const
+     return mValue;
+ }
+ 
++template <typename ResourceType, typename IDType>
++void ResourceMap<ResourceType, IDType>::Iterator::skipNullHashedResources()
++{
++    // Reserved handles are stored as nullptr. nextResource() skips them in the flat arrays; skip
++    // them in the hash map here.
++    if (!mSkipNulls || mFlatIndex < mOrigin.getFlatEndIndex())
++    {
++        return;
++    }
++    while (mHashIndex != mOrigin.mHashedResources.end() && mHashIndex->second == nullptr)
++    {
++        mHashIndex++;
++    }
++}
++
+ template <typename ResourceType, typename IDType>
+ void ResourceMap<ResourceType, IDType>::Iterator::updateValue()
+ {
+diff --git a/src/libANGLE/ResourceMap_unittest.cpp b/src/libANGLE/ResourceMap_unittest.cpp
+index 67f9e0702b..85e3cada22 100644
+--- a/src/libANGLE/ResourceMap_unittest.cpp
++++ b/src/libANGLE/ResourceMap_unittest.cpp
+@@ -595,4 +595,81 @@ TEST(ResourceMapTest, IteratorVisitsInitialFlatArrayAndHashMap)
+ 
+     resourceMap.clear();
+ }
++
++template <typename T>
++void IteratorSkipsReservedHandles(const std::vector<T> &reservedHandles,
++                                  const std::vector<T> &assignedHandles)
++{
++    ResourceMap<size_t, T> resourceMap;
++    std::vector<size_t> objects(assignedHandles.size(), 1);
++    for (T handle : reservedHandles)
++    {
++        resourceMap.assign(handle, nullptr);
++    }
++    for (size_t index = 0; index < assignedHandles.size(); ++index)
++    {
++        resourceMap.assign(assignedHandles[index], &objects[index]);
++    }
++
++    // The iterator must skip the reserved handles.
++    std::map<GLuint, size_t *> visitedHandleMap;
++    for (const auto &idValue : UnsafeResourceMapIter(resourceMap))
++    {
++        EXPECT_NE(idValue.second, nullptr) << "handle=" << idValue.first;
++        visitedHandleMap[idValue.first] = idValue.second;
++    }
++    EXPECT_EQ(visitedHandleMap.size(), assignedHandles.size());
++    for (size_t index = 0; index < assignedHandles.size(); ++index)
++    {
++        GLuint handle = GetIDValue(assignedHandles[index]);
++        EXPECT_EQ(visitedHandleMap.count(handle), 1u) << "handle=" << handle;
++        EXPECT_EQ(visitedHandleMap[handle], &objects[index]) << "handle=" << handle;
++    }
++
++    // The iterator with nulls must visit the reserved handles.
++    std::map<GLuint, size_t *> visitedWithNullHandleMap;
++    UnsafeResourceMapIter iter(resourceMap);
++    for (auto it = iter.beginWithNull(); it != iter.endWithNull(); ++it)
++    {
++        visitedWithNullHandleMap[it->first] = it->second;
++    }
++    EXPECT_EQ(visitedWithNullHandleMap.size(), reservedHandles.size() + assignedHandles.size());
++    for (T reservedHandle : reservedHandles)
++    {
++        GLuint handle = GetIDValue(reservedHandle);
++        EXPECT_EQ(visitedWithNullHandleMap.count(handle), 1u) << "handle=" << handle;
++        EXPECT_EQ(visitedWithNullHandleMap[handle], nullptr) << "handle=" << handle;
++    }
++
++    resourceMap.clear();
++}
++
++// Tests that the iterator skips reserved handles in the flat array and in the hash map.  Without
++// ANGLE_ENABLE_SHARE_CONTEXT_LOCK all maps are lockless and handles from 0x3000 up are in the hash
++// map, so every test also uses handles above that.
++TEST(ResourceMapTest, IteratorSkipsReservedHandlesLockless)
++{
++    IteratorSkipsReservedHandles<LocklessType>({1, 3, 0x3001, 0x3003, 0x3005}, {2, 0x3002, 0x3004});
++}
++
++TEST(ResourceMapTest, IteratorSkipsReservedHandlesLocked)
++{
++    IteratorSkipsReservedHandles<LockedType>({1, 3, 0xC1, 0xC3, 0x3001, 0x3003}, {2, 0xC2, 0x3002});
++}
++
++// Tests that the iterator skips reserved handles in the initial flat array, the additional flat
++// array and the hash map.
++TEST(ResourceMapTest, IteratorSkipsReservedHandlesAdditionalFlat)
++{
++    IteratorSkipsReservedHandles<AdditionalFlatType>({1, 4, 6, 11, 13, 0x3001, 0x3003},
++                                                     {2, 5, 12, 0x3002});
++}
++
++// Tests that the iterator skips reserved handles when the hash map contains only reserved handles.
++TEST(ResourceMapTest, IteratorSkipsReservedHandlesOnlyReservedInHashMap)
++{
++    IteratorSkipsReservedHandles<LocklessType>({0x3001, 0x3002}, {1});
++    IteratorSkipsReservedHandles<LockedType>({0x3001, 0x3002}, {1});
++    IteratorSkipsReservedHandles<AdditionalFlatType>({0x3001, 0x3002}, {1, 5});
++}
+ }  // anonymous namespace
+diff --git a/src/tests/egl_tests/EGLMemoryUsageReportTest.cpp b/src/tests/egl_tests/EGLMemoryUsageReportTest.cpp
+index 27af4b0c79..1a6ca8299b 100644
+--- a/src/tests/egl_tests/EGLMemoryUsageReportTest.cpp
++++ b/src/tests/egl_tests/EGLMemoryUsageReportTest.cpp
+@@ -36,6 +36,11 @@ class EGLMemoryUsageReportTest : public ANGLETest<>
+         return (static_cast<uint64_t>(parts[0]) & 0xffffffff) |
+                ((static_cast<uint64_t>(parts[1]) & 0xffffffff) << 32);
+     }
++
++    // Enough object names that the latest ones are stored in the hash map of the resource map
++    // instead of its flat arrays.  Buffer names are in flat arrays below 0x7800 when the share
++    // context lock is enabled, and other names, or all names without the lock, below 0x3000.
++    static constexpr GLsizei kHashedObjectNameCount = 0x7800 + 16;
+ };
+ 
+ // Basic memory usage queries
+@@ -113,5 +118,68 @@ TEST_P(EGLMemoryUsageReportTest, QueryNonCurrentContext)
+     EXPECT_EGL_TRUE(eglDestroyContext(display, context2));
+ }
+ 
++// Test that memory usage can be queried while many generated buffer names are not bound.
++TEST_P(EGLMemoryUsageReportTest, QueryWithManyUnboundBufferNames)
++{
++    ANGLE_SKIP_TEST_IF(!hasMemoryUsageReportExtension());
++
++    EGLDisplay display = getEGLWindow()->getDisplay();
++    EGLContext context = getEGLWindow()->getContext();
++
++    uint64_t memorySize1 = getMemoryUsage(display, context);
++
++    std::vector<GLuint> buffers(kHashedObjectNameCount);
++    glGenBuffers(kHashedObjectNameCount, buffers.data());
++    ASSERT_GL_NO_ERROR();
++
++    uint64_t memorySize2 = getMemoryUsage(display, context);
++    EXPECT_EQ(memorySize2, memorySize1);
++
++    glDeleteBuffers(kHashedObjectNameCount, buffers.data());
++    ASSERT_GL_NO_ERROR();
++}
++
++// Test that memory usage can be queried while many generated texture names are not bound.
++TEST_P(EGLMemoryUsageReportTest, QueryWithManyUnboundTextureNames)
++{
++    ANGLE_SKIP_TEST_IF(!hasMemoryUsageReportExtension());
++
++    EGLDisplay display = getEGLWindow()->getDisplay();
++    EGLContext context = getEGLWindow()->getContext();
++
++    uint64_t memorySize1 = getMemoryUsage(display, context);
++
++    std::vector<GLuint> textures(kHashedObjectNameCount);
++    glGenTextures(kHashedObjectNameCount, textures.data());
++    ASSERT_GL_NO_ERROR();
++
++    uint64_t memorySize2 = getMemoryUsage(display, context);
++    EXPECT_EQ(memorySize2, memorySize1);
++
++    glDeleteTextures(kHashedObjectNameCount, textures.data());
++    ASSERT_GL_NO_ERROR();
++}
++
++// Test that memory usage can be queried while many generated renderbuffer names are not bound.
++TEST_P(EGLMemoryUsageReportTest, QueryWithManyUnboundRenderbufferNames)
++{
++    ANGLE_SKIP_TEST_IF(!hasMemoryUsageReportExtension());
++
++    EGLDisplay display = getEGLWindow()->getDisplay();
++    EGLContext context = getEGLWindow()->getContext();
++
++    uint64_t memorySize1 = getMemoryUsage(display, context);
++
++    std::vector<GLuint> renderbuffers(kHashedObjectNameCount);
++    glGenRenderbuffers(kHashedObjectNameCount, renderbuffers.data());
++    ASSERT_GL_NO_ERROR();
++
++    uint64_t memorySize2 = getMemoryUsage(display, context);
++    EXPECT_EQ(memorySize2, memorySize1);
++
++    glDeleteRenderbuffers(kHashedObjectNameCount, renderbuffers.data());
++    ASSERT_GL_NO_ERROR();
++}
++
+ GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(EGLMemoryUsageReportTest);
+ ANGLE_INSTANTIATE_TEST_ES3(EGLMemoryUsageReportTest);
