@@ -1,0 +1,114 @@
+Conservative Metal texture usage optimization for chromium/8127.
+Apply after the preceding patches in build.sh.
+
+Avoid ShaderWrite for single-level 2D textures when neither GLES image access
+nor image-load/store pixel local storage requires it. Preserve render-target
+and sampling usage, and retain shader writes for other types and mip chains.
+IOSurface-backed textures are unchanged.
+
+diff --git a/src/libANGLE/renderer/metal/mtl_resources.mm b/src/libANGLE/renderer/metal/mtl_resources.mm
+--- a/src/libANGLE/renderer/metal/mtl_resources.mm
++++ b/src/libANGLE/renderer/metal/mtl_resources.mm
+@@ -456,7 +456,14 @@ Texture::Texture(ContextMtl *context,
+         if (!renderTargetOnly || needMultisampleColorFormatShaderReadWorkaround(context, desc))
+         {
+             desc.usage = desc.usage | MTLTextureUsageShaderRead;
+-            if (context->getNativeFormatCaps(desc.pixelFormat).writable)
++            // Single-level 2D textures need no compute mip writes. Keep image-access paths
++            // writable, but avoid restricting Metal's layout choices for sampling/rendering.
++            const bool needsShaderWrite =
++                desc.textureType != MTLTextureType2D || desc.mipmapLevelCount > 1 ||
++                context->getDisplay()->getMaxSupportedESVersion() >= gl::Version(3, 1) ||
++                context->getNativePixelLocalStorageOptions().type ==
++                    ShPixelLocalStorageType::ImageLoadStore;
++            if (context->getNativeFormatCaps(desc.pixelFormat).writable && needsShaderWrite)
+             {
+                 desc.usage = desc.usage | MTLTextureUsageShaderWrite;
+             }
+diff --git a/src/tests/angle_white_box_tests.gni b/src/tests/angle_white_box_tests.gni
+--- a/src/tests/angle_white_box_tests.gni
++++ b/src/tests/angle_white_box_tests.gni
+@@ -23,4 +23,7 @@ angle_white_box_tests_vulkan_sources = [
+   "gl_tests/VulkanMultithreadingTest.cpp",
+   "gl_tests/VulkanUniformUpdatesTest.cpp",
+ ]
+-angle_white_box_tests_metal_sources = [ "gl_tests/BufferPoolTestMetal.mm" ]
++angle_white_box_tests_metal_sources = [
++  "gl_tests/BufferPoolTestMetal.mm",
++  "gl_tests/TextureTestMetal.mm",
++]
+diff --git a/src/tests/gl_tests/TextureTestMetal.mm b/src/tests/gl_tests/TextureTestMetal.mm
+new file mode 100644
+--- /dev/null
++++ b/src/tests/gl_tests/TextureTestMetal.mm
+@@ -0,0 +1,70 @@
++//
++// Copyright 2026 The ANGLE Project Authors. All rights reserved.
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++//
++
++#include "test_utils/ANGLETest.h"
++
++#include "libANGLE/Context.h"
++#include "libANGLE/Display.h"
++#include "libANGLE/renderer/metal/ContextMtl.h"
++#include "libANGLE/renderer/metal/DisplayMtl.h"
++#include "libANGLE/renderer/metal/mtl_resources.h"
++
++using namespace angle;
++
++namespace
++{
++class TextureTestMetal : public ANGLETest<>
++{
++  protected:
++    TextureTestMetal()
++    {
++        setWindowWidth(16);
++        setWindowHeight(16);
++    }
++
++    rx::ContextMtl *getContextMtl()
++    {
++        egl::Display *display   = static_cast<egl::Display *>(getEGLWindow()->getDisplay());
++        gl::ContextID contextID = {
++            static_cast<GLuint>(reinterpret_cast<uintptr_t>(getEGLWindow()->getContext()))};
++        return rx::mtl::GetImpl(display->getContext(contextID));
++    }
++};
++
++TEST_P(TextureTestMetal, ShaderWriteUsage)
++{
++    rx::ContextMtl *context = getContextMtl();
++    const auto &format      = context->getPixelFormat(angle::FormatID::R16G16B16A16_FLOAT);
++    ASSERT_TRUE(context->getNativeFormatCaps(format.metalFormat).writable);
++    const bool needsImageWrites =
++        context->getDisplay()->getMaxSupportedESVersion() >= gl::Version(3, 1) ||
++        context->getNativePixelLocalStorageOptions().type ==
++            ShPixelLocalStorageType::ImageLoadStore;
++
++    rx::mtl::TextureRef singleLevel;
++    ASSERT_EQ(
++        rx::mtl::Texture::Make2DTexture(context, format, 16, 16, 1, false, true, &singleLevel),
++        angle::Result::Continue);
++    EXPECT_TRUE(singleLevel->isShaderReadable());
++    EXPECT_EQ(singleLevel->isShaderWritable(), needsImageWrites);
++    EXPECT_NE(singleLevel->get().usage & MTLTextureUsageRenderTarget, 0u);
++    EXPECT_TRUE(singleLevel->supportFormatView());
++
++    rx::mtl::TextureRef mipmapped;
++    ASSERT_EQ(rx::mtl::Texture::Make2DTexture(context, format, 16, 16, 2, false, true, &mipmapped),
++              angle::Result::Continue);
++    EXPECT_TRUE(mipmapped->isShaderWritable());
++
++    rx::mtl::TextureRef volume;
++    ASSERT_EQ(rx::mtl::Texture::Make3DTexture(context, format, 16, 16, 4, 1, false, true, &volume),
++              angle::Result::Continue);
++    EXPECT_TRUE(volume->isShaderWritable());
++}
++
++ANGLE_INSTANTIATE_TEST(TextureTestMetal,
++                       ES3_METAL(),
++                       ES3_METAL().enable(Feature::DisableProgrammableBlending));
++}  // namespace

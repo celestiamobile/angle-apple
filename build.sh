@@ -68,6 +68,10 @@ echo "Apply shader derivative fix"
 git apply ../angle.shader-derivatives.patch --ignore-whitespace --whitespace=nowarn
 check_success
 
+echo "Apply Metal texture usage optimization"
+git apply ../angle.texture-usage.patch --ignore-whitespace --whitespace=nowarn
+check_success
+
 cd build
 echo "Apply Apple chromium build patch"
 git apply ../../chromium.build.apple.patch --ignore-whitespace --whitespace=nowarn
