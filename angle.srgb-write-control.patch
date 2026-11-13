@@ -1,0 +1,394 @@
+Metal GL_EXT_sRGB_write_control support for chromium/8127.
+Apply after the preceding patches in build.sh.
+
+Use cached linear views to disable sRGB render-target conversion without copies.
+Memoryless MSAA attachments use a cached linear transient texture instead of
+a view, restoring contents from the resolve texture when the pass restarts.
+Preserve load/store restrictions on texture views. Include regression tests
+for toggling, clears, blending, blits, explicit and implicit MSAA, mixed
+attachments, and the sRGB default framebuffer.
+
+diff --git a/src/libANGLE/renderer/metal/DisplayMtl.mm b/src/libANGLE/renderer/metal/DisplayMtl.mm
+--- a/src/libANGLE/renderer/metal/DisplayMtl.mm
++++ b/src/libANGLE/renderer/metal/DisplayMtl.mm
+@@ -1009,6 +1010,8 @@ void DisplayMtl::initializeExtensions() const
+     mNativeExtensions.textureFilterAnisotropicEXT = true;
+     mNativeCaps.maxTextureAnisotropy              = 16;
+ 
++    mNativeExtensions.sRGBWriteControlEXT = true;
++
+     mNativeExtensions.textureNpotOES = true;
+ 
+     mNativeExtensions.texture3DOES = true;
+diff --git a/src/libANGLE/renderer/metal/FrameBufferMtl.mm b/src/libANGLE/renderer/metal/FrameBufferMtl.mm
+--- a/src/libANGLE/renderer/metal/FrameBufferMtl.mm
++++ b/src/libANGLE/renderer/metal/FrameBufferMtl.mm
+@@ -754,6 +844,7 @@ angle::Result FramebufferMtl::syncState(const gl::Context *context,
+             case gl::Framebuffer::DIRTY_BIT_DEFAULT_HEIGHT:
+             case gl::Framebuffer::DIRTY_BIT_DEFAULT_SAMPLES:
+             case gl::Framebuffer::DIRTY_BIT_DEFAULT_FIXED_SAMPLE_LOCATIONS:
++            case gl::Framebuffer::DIRTY_BIT_FRAMEBUFFER_SRGB_WRITE_CONTROL_MODE:
+                 break;
+             default:
+             {
+@@ -1140,6 +1231,20 @@ angle::Result FramebufferMtl::prepareRenderPass(const gl::Context *context,
+         {
+             colorRenderTarget->toRenderPassAttachmentDesc(&colorAttachment);
+ 
++            if (mState.getWriteControlMode() == gl::SrgbWriteControlMode::Linear &&
++                colorRenderTarget->getFormat().actualAngleFormat().isSRGB)
++            {
++                colorAttachment.texture = colorAttachment.texture->getLinearColorView();
++                ANGLE_CHECK_GL_ALLOC(mtl::GetImpl(context), colorAttachment.texture->get());
++                if (colorAttachment.implicitMSTexture)
++                {
++                    colorAttachment.implicitMSTexture =
++                        colorAttachment.implicitMSTexture->getLinearColorView();
++                    ANGLE_CHECK_GL_ALLOC(mtl::GetImpl(context),
++                                         colorAttachment.implicitMSTexture->get());
++                }
++            }
++
+             desc.numColorAttachments = std::max(desc.numColorAttachments, colorIndexGL + 1);
+             desc.rasterSampleCount =
+                 std::max(desc.rasterSampleCount, colorRenderTarget->getRenderSamples());
+diff --git a/src/libANGLE/renderer/metal/mtl_resources.mm b/src/libANGLE/renderer/metal/mtl_resources.mm
+--- a/src/libANGLE/renderer/metal/mtl_resources.mm
++++ b/src/libANGLE/renderer/metal/mtl_resources.mm
+@@ -521,7 +528,8 @@ Texture::Texture(ContextMtl *context,
+ 
+ Texture::Texture(Texture *original, MTLPixelFormat pixelFormat)
+     : Resource(original),
+-      mColorWritableMask(original->mColorWritableMask)  // Share color write mask property
++      mColorWritableMask(original->mColorWritableMask),
++      mShouldNotLoadStore(original->mShouldNotLoadStore)
+ {
+     ANGLE_MTL_OBJC_SCOPE
+     {
+@@ -537,7 +545,8 @@ Texture::Texture(Texture *original,
+                  NSRange levels,
+                  NSRange slices)
+     : Resource(original),
+-      mColorWritableMask(original->mColorWritableMask)  // Share color write mask property
++      mColorWritableMask(original->mColorWritableMask),
++      mShouldNotLoadStore(original->mShouldNotLoadStore)
+ {
+     ANGLE_MTL_OBJC_SCOPE
+     {
+@@ -557,7 +566,8 @@ Texture::Texture(Texture *original,
+                  NSRange slices,
+                  const MTLTextureSwizzleChannels &swizzle)
+     : Resource(original),
+-      mColorWritableMask(original->mColorWritableMask)  // Share color write mask property
++      mColorWritableMask(original->mColorWritableMask),
++      mShouldNotLoadStore(original->mShouldNotLoadStore)
+ {
+     ANGLE_MTL_OBJC_SCOPE
+     {
+@@ -909,17 +919,36 @@ TextureRef Texture::getLinearColorView()
+         return mLinearColorView;
+     }
+ 
++    MTLPixelFormat linearFormat;
+     switch (pixelFormat())
+     {
+         case MTLPixelFormatRGBA8Unorm_sRGB:
+-            mLinearColorView = createViewWithCompatibleFormat(MTLPixelFormatRGBA8Unorm);
++            linearFormat = MTLPixelFormatRGBA8Unorm;
+             break;
+         case MTLPixelFormatBGRA8Unorm_sRGB:
+-            mLinearColorView = createViewWithCompatibleFormat(MTLPixelFormatBGRA8Unorm);
++            linearFormat = MTLPixelFormatBGRA8Unorm;
+             break;
+         default:
+             // NOTE(hqle): Not all sRGB formats are supported yet.
+             UNREACHABLE();
++            return nullptr;
++    }
++
++    if (get().storageMode == MTLStorageModeMemoryless)
++    {
++        // Memoryless textures cannot have views. Their contents are restored from the resolve
++        // texture at each render pass, so a separate transient attachment is sufficient.
++        ASSERT(mCreationDesc);
++        angle::ObjCPtr<MTLTextureDescriptor> desc = angle::adoptObjCPtr([mCreationDesc.get() copy]);
++        desc.get().pixelFormat                    = linearFormat;
++        auto texture     = angle::adoptObjCPtr([get().device newTextureWithDescriptor:desc.get()]);
++        mLinearColorView = MakeFromMetal(texture.get());
++        mLinearColorView->mShouldNotLoadStore = mShouldNotLoadStore;
++        mLinearColorView->mColorWritableMask  = mColorWritableMask;
++    }
++    else
++    {
++        mLinearColorView = createViewWithCompatibleFormat(linearFormat);
+     }
+ 
+     return mLinearColorView;
+diff --git a/src/tests/gl_tests/SRGBFramebufferTest.cpp b/src/tests/gl_tests/SRGBFramebufferTest.cpp
+--- a/src/tests/gl_tests/SRGBFramebufferTest.cpp
++++ b/src/tests/gl_tests/SRGBFramebufferTest.cpp
+@@ -244,7 +244,7 @@ TEST_P(SRGBFramebufferTest, NegativeLifetimeTracking)
+ TEST_P(SRGBFramebufferTestES3, BlitFramebuffer)
+ {
+     // http://anglebug.com/42264326
+-    ANGLE_SKIP_TEST_IF(!IsVulkan());
++    ANGLE_SKIP_TEST_IF(!IsVulkan() && !IsMetal());
+ 
+     if (!IsGLExtensionEnabled("GL_EXT_sRGB_write_control") ||
+         (!IsGLExtensionEnabled("GL_EXT_sRGB") && getClientMajorVersion() < 3))
+@@ -299,6 +299,217 @@ TEST_P(SRGBFramebufferTestES3, BlitFramebuffer)
+     EXPECT_PIXEL_COLOR_NEAR(0, 0, srgbColor, 1.0);
+ }
+ 
++TEST_P(SRGBFramebufferTest, ClearAndBlendWithWriteControl)
++{
++    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled("GL_EXT_sRGB_write_control"));
++    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled("GL_EXT_sRGB") && getClientMajorVersion() < 3);
++
++    GLTexture texture;
++    glBindTexture(GL_TEXTURE_2D, texture);
++    glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB_ALPHA_EXT, 4, 4, 0, GL_SRGB_ALPHA_EXT, GL_UNSIGNED_BYTE,
++                 nullptr);
++    GLFramebuffer framebuffer;
++    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
++    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0);
++    ASSERT_GL_FRAMEBUFFER_COMPLETE(GL_FRAMEBUFFER);
++    glViewport(0, 0, 4, 4);
++
++    glUseProgram(mProgram);
++    glUniform4f(mColorLocation, 0.25f, 0.25f, 0.25f, 0.25f);
++    glBlendFunc(GL_ONE, GL_ONE);
++
++    for (bool srgbEnabled : {false, true})
++    {
++        if (srgbEnabled)
++        {
++            glEnable(GL_FRAMEBUFFER_SRGB_EXT);
++        }
++        else
++        {
++            glDisable(GL_FRAMEBUFFER_SRGB_EXT);
++        }
++
++        glClearColor(0.25f, 0.25f, 0.25f, 0.25f);
++        glClear(GL_COLOR_BUFFER_BIT);
++        EXPECT_PIXEL_NEAR(3, 0, srgbEnabled ? 137 : 64, srgbEnabled ? 137 : 64,
++                          srgbEnabled ? 137 : 64, 64, 1);
++
++        glEnable(GL_SCISSOR_TEST);
++        glScissor(0, 0, 2, 4);
++        glClearColor(0.5f, 0.5f, 0.5f, 0.5f);
++        glClear(GL_COLOR_BUFFER_BIT);
++        glDisable(GL_SCISSOR_TEST);
++
++        glEnable(GL_BLEND);
++        drawQuad(mProgram, essl1_shaders::PositionAttrib(), 0.0f);
++        glDisable(GL_BLEND);
++        ASSERT_GL_NO_ERROR();
++
++        EXPECT_PIXEL_NEAR(0, 0, srgbEnabled ? 225 : 191, srgbEnabled ? 225 : 191,
++                          srgbEnabled ? 225 : 191, 191, 2);
++        EXPECT_PIXEL_NEAR(3, 0, srgbEnabled ? 188 : 128, srgbEnabled ? 188 : 128,
++                          srgbEnabled ? 188 : 128, 128, 2);
++    }
++}
++
++TEST_P(SRGBFramebufferTest, ToggleWithoutReadback)
++{
++    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled("GL_EXT_sRGB_write_control"));
++    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled("GL_EXT_sRGB") && getClientMajorVersion() < 3);
++
++    GLTexture texture;
++    glBindTexture(GL_TEXTURE_2D, texture);
++    glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB_ALPHA_EXT, 4, 4, 0, GL_SRGB_ALPHA_EXT, GL_UNSIGNED_BYTE,
++                 nullptr);
++    GLFramebuffer framebuffer;
++    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
++    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0);
++    ASSERT_GL_FRAMEBUFFER_COMPLETE(GL_FRAMEBUFFER);
++    glViewport(0, 0, 4, 4);
++
++    glUseProgram(mProgram);
++    glUniform4fv(mColorLocation, 1, srgbColor.toNormalizedVector().data());
++    glEnable(GL_SCISSOR_TEST);
++    glScissor(0, 0, 2, 4);
++    glDisable(GL_FRAMEBUFFER_SRGB_EXT);
++    drawQuad(mProgram, essl1_shaders::PositionAttrib(), 0.0f);
++    glScissor(2, 0, 2, 4);
++    glEnable(GL_FRAMEBUFFER_SRGB_EXT);
++    drawQuad(mProgram, essl1_shaders::PositionAttrib(), 0.0f);
++    ASSERT_GL_NO_ERROR();
++
++    EXPECT_PIXEL_COLOR_NEAR(0, 0, srgbColor, 1);
++    EXPECT_PIXEL_COLOR_NEAR(3, 0, linearColor, 1);
++}
++
++TEST_P(SRGBFramebufferTest, MultisampledRenderToTextureWriteControl)
++{
++    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled("GL_EXT_sRGB_write_control"));
++    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled("GL_EXT_multisampled_render_to_texture"));
++    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled("GL_EXT_sRGB") && getClientMajorVersion() < 3);
++
++    GLTexture texture;
++    glBindTexture(GL_TEXTURE_2D, texture);
++    glTexImage2D(GL_TEXTURE_2D, 0, GL_SRGB_ALPHA_EXT, 4, 4, 0, GL_SRGB_ALPHA_EXT, GL_UNSIGNED_BYTE,
++                 nullptr);
++    GLFramebuffer framebuffer;
++    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
++    glFramebufferTexture2DMultisampleEXT(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
++                                         texture, 0, 4);
++    ASSERT_GL_FRAMEBUFFER_COMPLETE(GL_FRAMEBUFFER);
++    glViewport(0, 0, 4, 4);
++
++    glUseProgram(mProgram);
++    glUniform4fv(mColorLocation, 1, srgbColor.toNormalizedVector().data());
++    glEnable(GL_FRAMEBUFFER_SRGB_EXT);
++    drawQuad(mProgram, essl1_shaders::PositionAttrib(), 0.0f);
++
++    glEnable(GL_SCISSOR_TEST);
++    glScissor(2, 0, 2, 4);
++    glDisable(GL_FRAMEBUFFER_SRGB_EXT);
++    drawQuad(mProgram, essl1_shaders::PositionAttrib(), 0.0f);
++    ASSERT_GL_NO_ERROR();
++    EXPECT_PIXEL_COLOR_NEAR(0, 0, linearColor, 1);
++    EXPECT_PIXEL_COLOR_NEAR(3, 0, srgbColor, 1);
++
++    glScissor(0, 2, 4, 2);
++    glEnable(GL_FRAMEBUFFER_SRGB_EXT);
++    drawQuad(mProgram, essl1_shaders::PositionAttrib(), 0.0f);
++    ASSERT_GL_NO_ERROR();
++    EXPECT_PIXEL_COLOR_NEAR(0, 0, linearColor, 1);
++    EXPECT_PIXEL_COLOR_NEAR(3, 0, srgbColor, 1);
++    EXPECT_PIXEL_COLOR_NEAR(3, 3, linearColor, 1);
++}
++
++TEST_P(SRGBFramebufferTestES3, MixedColorAttachmentsWriteControl)
++{
++    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled("GL_EXT_sRGB_write_control"));
++
++    GLTexture linearTexture;
++    glBindTexture(GL_TEXTURE_2D, linearTexture);
++    glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, 4, 4);
++    GLTexture srgbTexture;
++    glBindTexture(GL_TEXTURE_2D, srgbTexture);
++    glTexStorage2D(GL_TEXTURE_2D, 1, GL_SRGB8_ALPHA8, 4, 4);
++    GLFramebuffer framebuffer;
++    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
++    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, linearTexture, 0);
++    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, srgbTexture, 0);
++    constexpr GLenum kDrawBuffers[] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
++    glDrawBuffers(2, kDrawBuffers);
++    ASSERT_GL_FRAMEBUFFER_COMPLETE(GL_FRAMEBUFFER);
++    glViewport(0, 0, 4, 4);
++
++    constexpr char kFragmentShader[] = R"(#version 300 es
++precision highp float;
++uniform vec4 color;
++layout(location = 0) out vec4 linearOutput;
++layout(location = 1) out vec4 srgbOutput;
++void main()
++{
++    linearOutput = color;
++    srgbOutput = color;
++})";
++    ANGLE_GL_PROGRAM(program, essl3_shaders::vs::Simple(), kFragmentShader);
++    glUseProgram(program);
++    glUniform4fv(glGetUniformLocation(program, "color"), 1, srgbColor.toNormalizedVector().data());
++    glEnable(GL_SCISSOR_TEST);
++    glScissor(0, 0, 2, 4);
++    glEnable(GL_FRAMEBUFFER_SRGB_EXT);
++    drawQuad(program, essl3_shaders::PositionAttrib(), 0.0f);
++    glScissor(2, 0, 2, 4);
++    glDisable(GL_FRAMEBUFFER_SRGB_EXT);
++    drawQuad(program, essl3_shaders::PositionAttrib(), 0.0f);
++    ASSERT_GL_NO_ERROR();
++
++    glReadBuffer(GL_COLOR_ATTACHMENT0);
++    EXPECT_PIXEL_COLOR_NEAR(0, 0, srgbColor, 1);
++    EXPECT_PIXEL_COLOR_NEAR(3, 0, srgbColor, 1);
++    glReadBuffer(GL_COLOR_ATTACHMENT1);
++    EXPECT_PIXEL_COLOR_NEAR(0, 0, linearColor, 1);
++    EXPECT_PIXEL_COLOR_NEAR(3, 0, srgbColor, 1);
++}
++
++TEST_P(SRGBFramebufferTestES3, MultisampleRenderbufferWriteControl)
++{
++    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled("GL_EXT_sRGB_write_control"));
++
++    GLRenderbuffer renderbuffer;
++    glBindRenderbuffer(GL_RENDERBUFFER, renderbuffer);
++    glRenderbufferStorageMultisample(GL_RENDERBUFFER, 4, GL_SRGB8_ALPHA8, 4, 4);
++    GLFramebuffer framebuffer;
++    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
++    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, renderbuffer);
++    ASSERT_GL_FRAMEBUFFER_COMPLETE(GL_FRAMEBUFFER);
++    glViewport(0, 0, 4, 4);
++
++    glUseProgram(mProgram);
++    glUniform4fv(mColorLocation, 1, srgbColor.toNormalizedVector().data());
++    glEnable(GL_SCISSOR_TEST);
++    glScissor(0, 0, 2, 4);
++    glEnable(GL_FRAMEBUFFER_SRGB_EXT);
++    drawQuad(mProgram, essl1_shaders::PositionAttrib(), 0.0f);
++    glScissor(2, 0, 2, 4);
++    glDisable(GL_FRAMEBUFFER_SRGB_EXT);
++    drawQuad(mProgram, essl1_shaders::PositionAttrib(), 0.0f);
++
++    GLTexture texture;
++    glBindTexture(GL_TEXTURE_2D, texture);
++    glTexStorage2D(GL_TEXTURE_2D, 1, GL_SRGB8_ALPHA8, 4, 4);
++    GLFramebuffer resolveFramebuffer;
++    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, resolveFramebuffer);
++    glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0);
++    ASSERT_GL_FRAMEBUFFER_COMPLETE(GL_DRAW_FRAMEBUFFER);
++    glDisable(GL_SCISSOR_TEST);
++    glEnable(GL_FRAMEBUFFER_SRGB_EXT);
++    glBlitFramebuffer(0, 0, 4, 4, 0, 0, 4, 4, GL_COLOR_BUFFER_BIT, GL_NEAREST);
++    ASSERT_GL_NO_ERROR();
++
++    glBindFramebuffer(GL_READ_FRAMEBUFFER, resolveFramebuffer);
++    EXPECT_PIXEL_COLOR_NEAR(0, 0, linearColor, 1);
++    EXPECT_PIXEL_COLOR_NEAR(3, 0, srgbColor, 1);
++}
++
+ // This test reproduces an issue in the Vulkan backend found in the Chromium CI that
+ // was caused by enabling the VK_KHR_image_format_list extension on SwiftShader
+ // which exposed GL_EXT_sRGB_write_control.
+@@ -633,6 +844,37 @@ TEST_P(SRGBFramebufferDefaultSrgbTest, ClearAndDrawAndBlend)
+     testBasic(true, getClientMajorVersion() >= 3);
+ }
+ 
++TEST_P(SRGBFramebufferDefaultSrgbTest, ToggleWriteControl)
++{
++    ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled("GL_EXT_sRGB_write_control"));
++
++    ANGLE_GL_PROGRAM(program, essl1_shaders::vs::Simple(), essl1_shaders::fs::UniformColor());
++    glUseProgram(program);
++    glUniform4fv(glGetUniformLocation(program, essl1_shaders::ColorUniform()), 1,
++                 srgbColor.toNormalizedVector().data());
++    glClearColor(0.25f, 0.25f, 0.25f, 0.5f);
++
++    for (bool srgbEnabled : {false, true})
++    {
++        if (srgbEnabled)
++        {
++            glEnable(GL_FRAMEBUFFER_SRGB_EXT);
++        }
++        else
++        {
++            glDisable(GL_FRAMEBUFFER_SRGB_EXT);
++        }
++        glClear(GL_COLOR_BUFFER_BIT);
++        EXPECT_PIXEL_NEAR(0, 0, srgbEnabled ? 137 : 64, srgbEnabled ? 137 : 64,
++                          srgbEnabled ? 137 : 64, 128, 1);
++        drawQuad(program, essl1_shaders::PositionAttrib(), 0.0f);
++        ASSERT_GL_NO_ERROR();
++        const GLColor expectedColor = srgbEnabled ? linearColor : srgbColor;
++        EXPECT_PIXEL_COLOR_NEAR(0, 0, expectedColor, 1);
++        swapBuffers();
++    }
++}
++
+ // Test blits from the sRGB-encoded default framebuffer to a linearly-encoded FBO.
+ TEST_P(SRGBFramebufferDefaultSrgbTest, BlitToLinearFbo)
+ {
